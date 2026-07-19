@@ -1,0 +1,539 @@
+---
+title: "TPX-A: An AAuth Profile for Metered LLM Inference Grants"
+abbrev: "TPX-A"
+category: std
+
+docname: draft-mcguinness-aauth-budget-tpx-latest
+submissiontype: IETF
+number:
+date:
+consensus: true
+v: 3
+keyword:
+ - aauth
+ - agent
+ - budget
+ - llm
+ - inference
+ - metering
+venue:
+  github: "mcguinness/draft-mcguinness-aauth-budget"
+  latest: "https://mcguinness.github.io/draft-mcguinness-aauth-budget/draft-mcguinness-aauth-budget-tpx.html"
+
+author:
+ -
+    fullname: Karl McGuinness
+    organization: Independent
+    email: public@karlmcguinness.com
+
+normative:
+  I-D.draft-hardt-oauth-aauth-protocol:
+    title: "AAuth Protocol"
+    author:
+      -
+        ins: D. Hardt
+        name: Dick Hardt
+    date: 2026
+    seriesinfo:
+      Internet-Draft: draft-hardt-oauth-aauth-protocol-08
+  I-D.draft-mcguinness-aauth-budget:
+    title: "Budgeted Missions for AAuth"
+    target: https://mcguinness.github.io/draft-mcguinness-aauth-budget/draft-mcguinness-aauth-budget.html
+    author:
+      -
+        ins: K. McGuinness
+        name: Karl McGuinness
+    date: 2026
+
+informative:
+  RFC9421:
+  TPX:
+    title: "TPX v0.2: An OAuth 2.0 profile for metered LLM inference grants"
+    target: https://tokenpony.dev/spec/
+    date: 2026
+
+--- abstract
+
+TPX enables LLM applications to operate without embedded provider
+credentials: a person grants an application a metered token budget
+from a provider of their choice, and the person handles payment
+directly. TPX v0.2 is an OAuth 2.0 profile of that pattern. This
+document, TPX-A, is its AAuth-native sibling: the application is an
+agent with its own cryptographic identity, consent happens at the
+person's Person Server, and the grant is an approved AAuth mission
+carrying a Budgeted Missions for AAuth cap. TPX-A pins what that
+extension leaves to profiles: the credit as the published pricing
+unit, a model restriction, the OpenAI-compatible inference API
+surface with its usage-accounting member, the balance model, and
+identity minimization.
+
+--- middle
+
+# Introduction
+
+TPX enables LLM applications to operate without embedded provider
+credentials. A person grants an application a metered token budget
+from a provider of their choice, and the person handles payment
+directly with the provider. TPX v0.2 {{TPX}} profiles OAuth 2.0 for
+that pattern.
+
+This document, TPX-A, is the AAuth-native sibling. The application
+is an AAuth agent with its own cryptographic identity
+{{I-D.draft-hardt-oauth-aauth-protocol}}, consent happens at the
+person's Person Server (PS), and the grant is an approved AAuth
+mission carrying a cap defined by Budgeted Missions for AAuth
+{{I-D.draft-mcguinness-aauth-budget}} ("AAuth-Budget"), which
+supplies the cap mechanics: the `budgets` mission member, the
+`budget` auth-token claim, the budget-state endpoint, and the
+`budget_exhausted` signal.
+
+TPX-A pins the five things AAuth-Budget leaves to profiles:
+
+- the credit as the published pricing unit ({{credit}});
+- the `models` member on a budgets entry ({{models}});
+- the inference API surface, including where the budget endpoint
+  lives and the `credits_charged` usage member ({{api}});
+- the balance model behind the cap, with the `balance_exhausted`
+  signal ({{balances}}); and
+- identity minimization in auth tokens ({{identity}}).
+
+Everything else is AAuth and AAuth-Budget. There is no client
+registration (the agent identifier is verified by construction), no
+redirect, no authorization code, no PKCE, no refresh token, and no
+optional sender-constraining: every token is key-bound and every
+request is signed, per AAuth. {{mapping}} maps each TPX v0.2
+mechanism to its TPX-A equivalent or records its retirement.
+
+## Applicability
+
+This document tracks draft-hardt-oauth-aauth-protocol-08, an
+individual Internet-Draft; a change to AAuth's surfaces revises this
+document. It targets deployments where the person operates or
+chooses a Person Server and the provider serves an
+OpenAI-compatible inference API as an AAuth resource.
+
+# Conventions and Terminology
+
+{::boilerplate bcp14-tagged}
+
+This document uses Person Server (PS), Access Server, agent, agent
+token, resource token, auth token, mission blob, `s256`, and the
+`AAuth-Mission` header as defined by
+{{I-D.draft-hardt-oauth-aauth-protocol}}, and budget, payee, the
+`budgets` member, the `budget` claim, `budget_endpoint`, and
+`budget_exhausted` as defined by
+{{I-D.draft-mcguinness-aauth-budget}}. It additionally uses:
+
+Person:
+: The human who maintains a provider balance, chooses a Person
+  Server, and approves missions. TPX v0.2's User.
+
+Agent:
+: The LLM application, an AAuth agent with its own identity. It
+  never holds provider keys, and it never holds a secret of any
+  kind. TPX v0.2's App.
+
+Provider:
+: A single operator serving an AAuth resource (an OpenAI-compatible
+  inference API) and holding person balances. In AAuth's federated
+  mode the same operator also runs the Access Server, potentially on
+  different origins. TPX v0.2's Provider.
+
+Grant:
+: A person's approval of one agent's access for one budget,
+  implemented as an approved AAuth mission and the auth tokens
+  issued under it. The budget lives on the mission, not on any
+  token.
+
+Credit:
+: The provider's published pricing unit: 1 credit = US$0.000001. A
+  budget of 100000 credits caps spend at $0.10.
+
+All JSON shown in this document is non-normative and illustrative;
+the member definitions in the surrounding text are authoritative.
+
+# Design Goals
+
+1. Agents work with any person-named provider and any conformant
+   Person Server; the agent hard-codes only AAuth.
+2. Grants convey tokens, not identity; agents learn nothing about
+   persons.
+3. Budgets enforce hard damage caps; a compromised agent cannot
+   exceed the remaining budget.
+4. Substrate reuse: TPX-A rides AAuth's endpoints, tokens,
+   signatures, and security analysis, and AAuth-Budget's cap
+   mechanics, and adds no new protocol.
+
+# Protocol Flow {#flow}
+
+1. The person names a provider to the agent.
+2. The agent proposes a mission at the person's PS (the `ps` claim
+   of its agent token names it): a description, tools, and a
+   `budgets` entry naming the provider, an amount, and any model
+   restriction.
+3. The PS clarifies as needed, authenticates the person, and
+   renders consent per AAuth-Budget: the agent's verified identity,
+   the amount with its currency, and the model restriction. The
+   person approves, possibly with a lower amount. Approval is
+   naturally asynchronous per AAuth; nothing blocks on a browser
+   redirect, because there is none.
+4. The PS returns the approved mission blob and its reference
+   (`approver`, `s256`).
+5. The agent requests inference; the provider answers 401 with a
+   resource token, copying the mission reference from the
+   `AAuth-Mission` header.
+6. The agent presents the resource token at the PS token endpoint
+   under the mission.
+7. The PS verifies the mission is active and the resource matches
+   the granted entry, then issues the auth token (PS-asserted mode)
+   or federates to the provider's Access Server (federated mode).
+   The auth token carries the mission reference and the granted
+   `budget` claim.
+8. The agent makes signed inference requests. The provider prices
+   actual usage, debits the grant keyed by the mission reference,
+   and reports `credits_charged`.
+9. When the budget is spent the provider fails closed with 402. The
+   agent proposes completion with total spend; a top-off is a new
+   mission, per AAuth-Budget.
+
+# The Credit {#credit}
+
+Budgets are committed in currency per AAuth-Budget; TPX-A providers
+price in credits at a fixed, exact conversion: 1 credit =
+US$0.000001. An agent proposing a 50000-credit budget proposes
+`{"amount": "0.05", "currency": "USD"}`. The person consents in
+money; the API surface reports in credits; the conversion is exact
+in both directions.
+
+Model discovery is API surface, not AAuth metadata:
+`GET {resource}/models` lists available models with per-token rates
+in credits for fresh input, cached input, and output.
+
+# The models Member {#models}
+
+TPX-A adds one OPTIONAL member to a `budgets` entry:
+
+`models`:
+: An array of model identifiers the grant is limited to; absent
+  means all models.
+
+AAuth-Budget's fail-closed rule applies: a PS that does not
+recognize `models` rejects the proposal, and a provider that cannot
+enforce it rejects the token. The PS renders the restriction at
+consent.
+
+# Inference API {#api}
+
+## Authentication {#api-auth}
+
+Every inference request is signed with the agent's key and carries
+the auth token and the mission reference, per AAuth:
+
+~~~ http-message
+POST /v1/chat/completions HTTP/1.1
+Host: api.tokenpony.dev
+Content-Type: application/json
+AAuth-Mission: approver="https://ps.example";
+    s256="EMIlPYHAY6dNVw_YguH7Vqde9hCAAtLHWRtZfCndpUc"
+Signature-Input: sig=("@method" "@authority" "@path"
+    "signature-key" "aauth-mission");created=1784387100
+Signature: sig=:...:
+Signature-Key: sig=jwt;jwt="<auth token>"
+~~~
+
+The provider verifies the HTTP Message Signature {{RFC9421}} against
+the auth token's `cnf.jwk`, the token per AAuth, and the header's
+mission reference against the token's `mission` claim. A model
+outside the granted restriction is refused.
+
+## Required Endpoints {#api-endpoints}
+
+Relative to the resource identifier:
+
+- `GET /models`: available models with per-token rates in credits.
+- `GET /grant`: the AAuth-Budget budget-state endpoint
+  ({{api-grant}}). The provider publishes it as `budget_endpoint`
+  in its resource metadata.
+- `POST /chat/completions`: OpenAI-compatible, streaming (SSE) and
+  non-streaming.
+
+## Metering {#api-metering}
+
+The provider prices actual usage (fresh input, cached input, and
+output tokens at the model's published rates) and debits the grant
+per AAuth-Budget, keyed by the mission reference. The debit is
+reported in the usage object:
+
+~~~ json
+"usage": {
+  "prompt_tokens": 812,
+  "cached_tokens": 256,
+  "completion_tokens": 214,
+  "credits_charged": 1930
+}
+~~~
+
+`credits_charged` is the TPX usage-accounting member, unchanged from
+TPX v0.2: the total credits debited for the request. Streaming
+responses report `usage`, including `credits_charged`, in the final
+SSE chunk.
+
+## Grant State {#api-grant}
+
+`GET /grant` returns the AAuth-Budget budget state, extended with
+the credit-denominated view:
+
+~~~ json
+{
+  "active": true,
+  "budget": { "amount": "0.05", "currency": "USD" },
+  "spent": { "amount": "0.04125", "currency": "USD" },
+  "credits": 50000,
+  "credits_used": 41250
+}
+~~~
+
+`credits`:
+: The granted cap in credits.
+
+`credits_used`:
+: Cumulative debits in credits.
+
+The conversion is exact, so the two views never disagree. Remaining
+budget is the difference. The response carries no identity, per
+AAuth-Budget. Agents SHOULD check it before large jobs.
+
+## Error Signals {#api-errors}
+
+Token problems use the AAuth challenge; spend problems use
+application-layer OpenAI-compatible error bodies:
+
+| Status | Signal | Meaning | Recovery |
+|---|---|---|---|
+| 401 | `AAuth-Requirement` challenge | Auth token expired, invalid, or revoked | Re-exchange at the PS; if the PS answers `mission_terminated`, stop |
+| 402 | `error.code: "budget_exhausted"` | Grant budget spent | New mission; the person decides whether to top off |
+| 402 | `error.code: "balance_exhausted"` | Person's provider balance empty | The person tops off at the provider |
+
+`budget_exhausted` is AAuth-Budget's code carried in the
+OpenAI-compatible nested body:
+
+~~~ json
+{
+  "error": {
+    "code": "budget_exhausted",
+    "message": "This grant's budget is spent.",
+    "type": "invalid_request_error"
+  }
+}
+~~~
+
+A revoked grant surfaces as the 401 challenge at the provider and as
+`mission_terminated` at the PS; there is no separate revocation
+status.
+
+# Balances and Account Binding {#balances}
+
+The provider debits a person balance, so every grant must bind to an
+account:
+
+- In the federated mode the provider's Access Server is the account
+  authority: it maps the PS's federation assertion to the account of
+  record.
+- In the PS-asserted mode the provider binds the account to the auth
+  token's (`iss`, `sub`) pair. It MAY create the account lazily at
+  first use with a zero balance; until the person tops off, requests
+  fail with `balance_exhausted`.
+
+A provider MUST debit only balances bound to the asserting PS. How a
+person links a PS identity to an existing account, and how payment
+works, are dashboard concerns out of scope for this profile.
+
+# Identity Minimization {#identity}
+
+Grants convey tokens, not identity:
+
+- `sub` in auth tokens MUST be a directed identifier, distinct per
+  resource, per AAuth.
+- Auth tokens MUST NOT carry `email`, `name`, or any other identity
+  claim, and MUST NOT carry an identifier stable across grants from
+  the agent's point of view.
+- Providers MUST NOT expose a stable cross-grant person identifier
+  to agents. The agent can correlate requests only within a single
+  grant, by design.
+
+# Worked Example {#example}
+
+Pony Chat proposes a 100000-credit ($0.10) grant; the person
+approves 50000 credits ($0.05). The approved mission blob:
+
+~~~ json
+{
+  "approver": "https://ps.example",
+  "agent": "aauth:pony-chat@ponychat.tokenpony.dev",
+  "approved_at": "2026-07-18T14:32:11Z",
+  "description":
+    "Chat in Pony Chat using your Token Pony balance.",
+  "approved_tools": [
+    { "name": "chat.completions",
+      "description":
+        "OpenAI-compatible chat completions at api.tokenpony.dev" }
+  ],
+  "capabilities": ["interaction"],
+  "budgets": [
+    { "resource": "https://api.tokenpony.dev",
+      "amount": "0.05",
+      "currency": "USD",
+      "models": ["pony-8b", "pony-70b"] }
+  ]
+}
+~~~
+
+Per AAuth, `s256` is computed over the exact response body bytes;
+for the compact (whitespace-free) serialization of this blob, in the
+member order shown, the mission reference is:
+
+~~~ text
+AAuth-Mission: approver="https://ps.example";
+    s256="EMIlPYHAY6dNVw_YguH7Vqde9hCAAtLHWRtZfCndpUc"
+~~~
+
+The agent reads the granted values from the blob: it asked for
+$0.10 and holds $0.05. An auth token issued under the mission:
+
+~~~ json
+{
+  "iss": "https://ps.example",
+  "dwk": "aauth-person.json",
+  "aud": "https://api.tokenpony.dev",
+  "sub": "p-7f3k9q",
+  "agent": "aauth:pony-chat@ponychat.tokenpony.dev",
+  "cnf": { "jwk": { "kty": "OKP", "crv": "Ed25519", "x": "..." } },
+  "jti": "at_9Kp2vN7sR1tY8mZ3qX5b",
+  "iat": 1784386800,
+  "exp": 1784390400,
+  "mission": {
+    "approver": "https://ps.example",
+    "s256": "EMIlPYHAY6dNVw_YguH7Vqde9hCAAtLHWRtZfCndpUc"
+  },
+  "budget": {
+    "resource": "https://api.tokenpony.dev",
+    "amount": "0.05",
+    "currency": "USD",
+    "models": ["pony-8b", "pony-70b"]
+  }
+}
+~~~
+
+The `budget` claim is the granted entry, verbatim, per AAuth-Budget;
+the provider learns the cap from the token and calls no one. After
+41250 credits of chat, `GET /grant` returns the state shown in
+{{api-grant}}, and a request that would exceed the remainder fails
+with `budget_exhausted` ({{api-errors}}).
+
+# Conformance {#conformance}
+
+An implementation conforms in one of three roles, each on top of its
+AAuth-Budget role.
+
+A **TPX-A provider** is a budgeted resource that additionally:
+
+- prices in credits at the fixed conversion of {{credit}} and
+  publishes rates at `GET /models`;
+- enforces the `models` restriction ({{models}});
+- serves the endpoints of {{api-endpoints}}, reporting
+  `credits_charged` in every usage object and the credit view at
+  `GET /grant`;
+- signals errors per {{api-errors}};
+- binds grants to balances per {{balances}}; and
+- keeps identity out of tokens, grant state, and usage
+  ({{identity}}).
+
+A **TPX-A agent** is a budgeted agent that additionally:
+
+- handles the 401 challenge by re-exchange, stops on
+  `mission_terminated`, and surfaces 402 to the person; and
+- SHOULD check `GET /grant` before large jobs and propose
+  completion, with total spend, when the task is done or the budget
+  is exhausted.
+
+A **Person Server** conforms per AAuth-Budget; TPX-A adds the
+`models` member to what it must recognize and render ({{models}}).
+
+# Security Considerations
+
+AAuth-Budget's security considerations apply: the cap is the
+backstop behind proof of possession, the meter is the payee, and
+consent is the ceiling. TPX-A adds:
+
+**Consent phishing.** TPX v0.2's open registration meant
+self-asserted app names, mitigated by verified origins. The TPX-A
+agent identifier is domain-verified by construction. The residual
+surface is the mission description: attacker-influenceable text the
+PS MUST sanitize and keep visually distinct from the amount, per
+AAuth and AAuth-Budget.
+
+**The Person Server as trusted party.** The person chooses the PS,
+and the provider debits balances only for grants asserted by the PS
+bound to the account ({{balances}}). A compromised PS can therefore
+approve missions against the balances of persons who linked it, up
+to each consent-rendered amount per mission. Providers SHOULD
+rate-limit issuance per PS and surface per-grant spend in their
+dashboard.
+
+**Storage.** There are no client secrets and no bearer strings.
+Providers persist the meter and account bindings; the mission blob
+is held by the agent and the PS, byte-exact under `s256`, so
+after-the-fact alteration of a grant is detectable by any holder of
+the original bytes.
+
+# Privacy Considerations
+
+What the provider learns (usage per grant per agent) is inherent to
+metering, as in TPX v0.2, and {{identity}} bounds it there: no
+identity claims, directed subjects, no cross-grant correlation
+handle for agents.
+
+What the PS learns is new relative to TPX v0.2: the person's own
+chosen governor sees mission text and which agents use which
+providers. The provider never sees the description; the blob stays
+with the agent and the PS, per AAuth.
+
+# IANA Considerations {#iana}
+
+This document has no IANA actions. The `models` member rides inside
+a `budgets` entry, whose profile extensibility
+{{I-D.draft-mcguinness-aauth-budget}} states; `credits`,
+`credits_used`, and `credits_charged` are members of API-surface
+responses this profile defines; and `balance_exhausted` is an
+API-surface error code.
+
+--- back
+
+# Mapping from TPX v0.2 {#mapping}
+
+| TPX v0.2 (OAuth 2.0) | TPX-A (AAuth) |
+|---|---|
+| RFC 9728 + RFC 8414 discovery | AAuth resource and person metadata, challenge-first |
+| RFC 7591 registration; client ID metadata documents | None: agent identity by construction (agent token) |
+| Public/confidential clients; hashed secrets | Dissolved: no secrets exist |
+| Authorization endpoint, redirect, code, iss (RFC 9207) | Mission proposal, clarification, approval at the PS; no front channel |
+| PKCE (RFC 7636); state | Retired with the front channel |
+| PAR (RFC 9126) | The proposal is already back-channel |
+| RAR type llm-inference (RFC 9396) | AAuth-Budget budgets entry + TPX-A models |
+| Resource indicator (RFC 8707) | The entry's resource + resource-token audience |
+| Refresh token as the grant; rotation, reuse detection | The mission is the grant; nothing rotates |
+| Access token, expires_in <= 3600 | Auth token, exp <= 1 hour, key-bound |
+| DPoP optional (RFC 9449) | Proof of possession is the substrate: cnf.jwk + signed requests on every call |
+| Introspection (RFC 7662) with budget_used | GET /grant with spent and credits_used |
+| Revocation (RFC 7009); provider dashboard | Mission revocation at the PS; the reissue gate bounds latency to one token lifetime |
+| Consent at the provider | Consent at the person's PS |
+| Budget as integer credits on the wire | Budget as currency, committed; credits at the API surface, exactly convertible |
+| credits_charged in usage | Unchanged |
+| 401 invalid_token / 402 spend signals | Same meanings; the 401 challenge is AAuth-Requirement |
+
+# Acknowledgments
+{:numbered="false"}
+
+TPX v0.2 {{TPX}} defined the metered LLM inference grant as an OAuth
+2.0 profile. This document restates it natively on AAuth via
+Budgeted Missions for AAuth, which generalizes its budget mechanism.
