@@ -235,20 +235,21 @@ TPX-A adds one OPTIONAL member to a `budgets` entry:
 AAuth-Budget's fail-closed rule applies: a PS that does not
 recognize `models` rejects the proposal, and a provider that cannot
 enforce it rejects the token. The PS renders the restriction at
-consent. If a proposal contains `models`, the granted value MUST be a
-non-empty subset of the proposed array; removing the member would
-broaden the grant and is forbidden. If the proposal omits `models`,
-the PS MAY add it as an attenuation.
+consent and attenuates as follows:
+
+- when the proposal contains `models`, the granted value MUST be a
+  non-empty subset of it — removing the member would broaden the
+  grant and is forbidden; and
+- when the proposal omits `models`, the PS MAY add it.
 
 # Inference API {#api}
 
-"OpenAI-compatible" in this document identifies the familiar chat
-completions request, response, and SSE shapes; it does not incorporate
-an evolving external API by reference. TPX-A interoperability covers
-the paths and the authentication, model-rate, usage, metering, state,
-and error requirements defined below. Providers MUST document any
-other supported request or response fields, and agents MUST NOT assume
-that unspecified optional features are present.
+"OpenAI-compatible" names the familiar chat-completions request,
+response, and SSE shapes; it does not incorporate an evolving
+external API by reference. Interoperability covers exactly the
+requirements defined below: providers MUST document any other
+supported fields, and agents MUST NOT assume unspecified features
+are present.
 
 ## Authentication {#api-auth}
 
@@ -272,10 +273,13 @@ the auth token's `cnf.jwk` and verifies the token per AAuth. If an
 `mission` claim. A model outside the granted restriction is refused
 with `model_not_allowed` ({{api-errors}}).
 
-All inference access is budgeted. The provider MUST refuse an
-inference request whose auth token lacks `inference` among its
-space-separated `scope` values, a `mission` claim, or a conformant
-`budget` claim, per AAuth-Budget's fail-closed rule.
+All inference access is budgeted: per AAuth-Budget's fail-closed
+rule, the provider MUST refuse an inference request whose auth token
+lacks any of:
+
+- `inference` among its space-separated `scope` values,
+- a `mission` claim, or
+- a conformant `budget` claim.
 
 ## Required Endpoints {#api-endpoints}
 
@@ -326,10 +330,9 @@ MUST include `id` and a `credits_per_token` object:
 ~~~
 
 `input`, `cached_input`, and `output` are REQUIRED non-negative
-values in AAuth-Budget's decimal string syntax. `cached_input`
-MUST NOT exceed `input`. The rates in effect when a request is
-admitted apply for the whole request; a provider MUST NOT change a
-rate during an admitted request. Rate changes can apply to later
+values in AAuth-Budget's decimal string syntax; `cached_input` MUST
+NOT exceed `input`. A request MUST be priced entirely at the rates
+in effect when it was admitted; rate changes apply only to later
 requests.
 
 ## Metering {#api-metering}
@@ -364,23 +367,29 @@ TPX v0.2: the total credits debited for the request, a non-negative
 JSON integer in the range defined by {{credit}}. Debits are whole
 credits, so the currency view is exact to six decimal places.
 
-Before inference begins, the provider MUST determine a finite maximum
-output-token count from the request or its documented default,
-calculate a conservative maximum charge at the admitted rates with
-the same ceiling, and atomically reserve that amount against both the
-grant and the bound person balance ({{balances}}). If the reservation
-cannot be made, it refuses before inference. On completion it commits the
-actual rounded charge once and releases the rest. This is the TPX-A
-reservation strategy required by AAuth-Budget's hard-cap invariant.
+AAuth-Budget's hard-cap invariant requires the TPX-A reservation
+strategy. Per request, the provider MUST:
+
+1. determine a finite maximum output-token count from the request or
+   its documented default;
+2. compute the maximum charge at the admitted rates, with the same
+   ceiling;
+3. atomically reserve that amount against both the grant and the
+   bound person balance ({{balances}}), refusing before inference if
+   either side cannot be reserved — a failed reservation debits
+   neither; and
+4. on completion, commit the actual charge once and release the
+   unused reservation.
 
 Streaming responses report `usage`, including `credits_charged`, in
 the final SSE chunk. Once inference has begun, processed input and
 generated output are chargeable even if the connection ends before
-the final chunk; the grant-state endpoint is authoritative after an
-ambiguous transport failure. Each accepted POST is a distinct
-chargeable operation. TPX-A defines no idempotent replay mechanism,
-so an agent MUST NOT automatically retry an ambiguous request without
-first checking grant state.
+the final chunk; after an ambiguous transport failure, the
+grant-state endpoint is authoritative.
+
+Each accepted POST is a distinct chargeable operation, and TPX-A
+defines no idempotent replay, so an agent MUST NOT automatically
+retry an ambiguous request without first checking grant state.
 
 ## Grant State {#api-grant}
 
@@ -405,12 +414,10 @@ the credit-denominated view:
 : REQUIRED. Cumulative committed debits in credits, equal to the exact
   conversion of `spent.amount`. It excludes outstanding reservations.
 
-Both members are non-negative JSON integers. The conversion is exact,
-so the two views MUST NOT disagree. Remaining budget is the
-difference. The response carries no identity and is not cacheable,
-per AAuth-Budget. Agents SHOULD check it before large jobs, while
-recognizing that concurrent requests can consume the snapshot's
-remainder.
+Both members are non-negative JSON integers; remaining budget is the
+difference. The response carries no identity, is not cacheable, and
+is an advisory snapshot, per AAuth-Budget. Agents SHOULD check it
+before large jobs.
 
 ## Error Signals {#api-errors}
 
@@ -445,21 +452,22 @@ TPX-A defines no separate application-layer revocation status.
 # Balances and Account Binding {#balances}
 
 The provider's Access Server is the account authority. During AAuth
-federation it maps the PS assertion to the provider account of record
-and keeps that mapping internal. When it needs a person identifier for
-that lookup, it uses AAuth's `requirement=claims` exchange with the PS;
-claims supplied on that protected PS-to-AS leg MUST NOT be copied into
-the auth token. If no binding exists, the Access Server uses AAuth's
-interaction or payment requirements to establish one before issuing
-an auth token.
+federation it:
 
-The provider MUST reserve and commit a debit atomically against both
-the mission grant and the bound person balance; failure to reserve
-either side produces no debit on the other. A provider MUST debit only
-a balance bound through the asserting PS and MUST NOT accept an
-account selector from the agent. How the person links a PS to an
-existing account, tops up, or settles payment is provider UI and
-payment-protocol surface outside this profile.
+- maps the PS assertion to the provider account of record and keeps
+  that mapping internal;
+- obtains a person identifier for that lookup, when needed, through
+  AAuth's `requirement=claims` exchange with the PS — claims from
+  that protected leg MUST NOT be copied into the auth token; and
+- establishes a missing binding through AAuth's interaction or
+  payment requirements before issuing an auth token.
+
+A provider MUST debit only a balance bound through the asserting PS
+and MUST NOT accept an account selector from the agent; debits are
+reserved and committed two-sided per {{api-metering}}. How the
+person links a PS to an existing account, tops up, or settles
+payment is provider UI and payment-protocol surface outside this
+profile.
 
 # Identity Minimization {#identity}
 
@@ -475,10 +483,10 @@ Grants convey tokens, not identity:
   correlate requests only within a single mission reference, by
   design.
 
-The Access Server can still identify the account while evaluating the
-federation request and can keep an internal grant-to-account mapping;
-that identifier does not need to appear in the auth token delivered
-through the agent.
+The Access Server can still identify the account while evaluating
+the federation request and keep an internal grant-to-account
+mapping; the identifier never appears in the auth token the agent
+holds.
 
 # Worked Example {#example}
 

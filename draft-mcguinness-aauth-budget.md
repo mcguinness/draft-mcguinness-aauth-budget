@@ -201,41 +201,43 @@ Each entry has the members:
   is compared by exact string match. At most one entry per resource.
 
 `amount`:
-: REQUIRED. A string containing a positive decimal number: the
-  maximum cumulative spend. Its syntax is this document's decimal
-  string: one or more ASCII digits, optionally followed by a period
-  and one or more ASCII digits, where the integer part has no leading
-  zero unless it is exactly `0`, and signs, exponents, grouping
-  characters, and surrounding whitespace are not allowed. The decimal
-  string grammar admits zero; an `amount` MUST be positive.
+: REQUIRED. The maximum cumulative spend: a decimal string with a
+  positive value. A decimal string is one or more ASCII digits,
+  optionally followed by a period and one or more ASCII digits, with
+  no leading zero in the integer part unless it is exactly `0`, and
+  no sign, exponent, grouping character, or whitespace. The grammar
+  admits zero; an `amount` MUST be positive.
 
 `currency`:
-: REQUIRED. A string containing exactly three uppercase ASCII letters
-  and naming a currency registered by ISO 4217 {{ISO4217}}. The
-  special-purpose codes `XTS` (testing) and `XXX` (no currency) MUST
-  NOT be used.
+: REQUIRED. A three-uppercase-ASCII-letter currency code registered
+  by ISO 4217 {{ISO4217}}. The special-purpose codes `XTS` and `XXX`
+  MUST NOT be used.
 
-A present `budgets` member MUST be a non-empty array. A mission MAY
-carry entries for several resources; each entry is independent.
-Amounts are compared using exact base-10 arithmetic, not lexical
-comparison or binary floating-point arithmetic that could permit the
-cap to be exceeded. Profiles MAY limit the supported number of digits
-or fractional digits.
+A present `budgets` member MUST be a non-empty array; entries for
+different resources are independent. Amounts are compared
+numerically in exact base-10 arithmetic — never lexically or in
+binary floating point that could overshoot the cap. Profiles MAY
+limit the supported number of digits or fractional digits.
 
 The proposal is a request, never authority: the granted values exist
-only in the approved blob. Every granted entry MUST correspond by
-exact `resource` match to a proposed entry, MUST retain its proposed
-`currency`, and MUST have an `amount` numerically less than or equal
-to the proposed amount. The PS MAY omit a proposed entry. It MUST NOT
-add an entry for an unproposed resource.
+only in the approved blob. Relative to the proposal, every granted
+entry:
 
-A profile MAY add members to an entry. Consumers fail closed: a
-Person Server MUST reject a proposal whose `budgets` entries carry
-members it does not recognize or values it cannot render for
-consent, and a resource MUST refuse budgeted access it cannot fully
-enforce ({{claim}}). A profile that permits a PS to change an added
-member MUST define which changes are attenuating; a granted value
-MUST NOT broaden the proposed authority.
+- MUST match a proposed entry by exact `resource` comparison: the PS
+  MAY omit a proposed entry but MUST NOT add one for an unproposed
+  resource;
+- MUST retain the proposed `currency`; and
+- MUST NOT exceed the proposed `amount`.
+
+A profile MAY add members to an entry; one that lets the PS change
+an added member MUST define which changes are attenuating, and a
+granted value MUST NOT broaden the proposed authority. Consumers
+fail closed:
+
+- a PS MUST reject a proposal whose entries carry members it does
+  not recognize or values it cannot render for consent; and
+- a resource MUST refuse budgeted access it cannot fully enforce
+  ({{claim}}).
 
 ## Consent {#consent}
 
@@ -330,46 +332,49 @@ verbatim, in a `budget` claim, and only that entry:
 
 - The entry's `resource` MUST equal the token's `aud`, using exact
   string comparison.
-- The `mission` claim is AAuth's own. The resource never
-  dereferences the blob, so the cap travels in the token and the
-  resource needs no call to the PS.
+- The `mission` claim is AAuth's own; the cap travels in the token,
+  so the resource never dereferences the blob or calls the PS.
 - Before issuing a token that carries a `budget` claim, the PS MUST
   verify that the mission is active and that the resource token's
   issuer equals the entry's `resource`, using exact string
   comparison.
 
-In AAuth's federated mode, when the PS federates a token request for
-a resource with a granted entry, the PS-to-AS request to the Access
-Server's token endpoint MUST include a `budget` parameter whose value
-is that granted entry verbatim. The PS MUST select the entry using
-the resource token's `mission` and `iss` claims; it MUST NOT accept a
-budget value from the agent's token request. The parameter asserts
-the granted entry for the mission named by the accompanying resource
-token's `mission` claim. The Access Server MUST verify that:
+In AAuth's federated mode, the budget travels as a `budget`
+parameter on the authenticated PS-to-AS token request; an agent
+cannot supply or modify it. The PS:
 
-- the resource token carries a `mission` claim, which the Access
-  Server copies into the auth token it mints;
-- the resource token's `iss` equals `budget.resource`; and
-- the auth token it is minting has an `aud` equal to
-  `budget.resource`.
+- MUST include the parameter, holding the granted entry verbatim,
+  whenever it federates a token request for a resource with a
+  granted entry; and
+- MUST select the entry using the resource token's `mission` and
+  `iss` claims, never a value from the agent's token request. The
+  parameter asserts the granted entry for the mission named by the
+  accompanying resource token's `mission` claim.
 
-If all checks succeed, the Access Server MUST copy the parameter
-verbatim into the auth token's `budget` claim. If the parameter is
-malformed, cannot be enforced, or is absent where Access Server
-policy requires a budget, it MUST refuse issuance. The Access Server
-never sees the blob and cannot detect an omitted parameter itself;
-the resource's fail-closed rule covers that case, since the minted
-token carries no `budget` claim and conveys no budgeted access. This
-parameter is part of the authenticated AAuth federation exchange; an
-agent cannot supply or modify it.
+The Access Server:
 
-A token issued under the mission for a resource with no entry carries
-no `budget` claim and conveys no budgeted access; whatever else it
-conveys is ordinary AAuth authorization, outside this document. A
-resource MUST take the cap and mission reference only from a verified
-auth token, never from request content or any other source. If an
-`AAuth-Mission` header is also present, the resource MUST verify that
-it equals the token's `mission` claim before serving the request.
+- MUST verify that the resource token carries a `mission` claim, and
+  copy it into the auth token it mints;
+- MUST verify that the resource token's `iss` and the minted token's
+  `aud` both equal `budget.resource`; and
+- MUST copy the parameter verbatim into the auth token's `budget`
+  claim once the checks pass, and refuse issuance when the parameter
+  is malformed, cannot be enforced, or is absent where its policy
+  requires a budget.
+
+The Access Server never sees the blob, so it cannot detect an
+omitted parameter; the resulting token simply carries no `budget`
+claim, and the resource fails closed.
+
+A token issued under the mission for a resource with no entry
+carries no `budget` claim and conveys no budgeted access; whatever
+else it conveys is ordinary AAuth authorization, outside this
+document.
+
+A resource MUST take the cap and mission reference only from a
+verified auth token, never from request content or any other source,
+and MUST reject a request whose `AAuth-Mission` header differs from
+the token's `mission` claim.
 
 Auth tokens remain proof-of-possession and short-lived per AAuth.
 Re-authorization obtains a fresh resource token and repasses the PS
@@ -394,31 +399,33 @@ The resource is the meter. It MUST:
 - refuse or bound any operation that cannot be served while
   preserving that invariant.
 
-For the durable binding above, two `budget` objects are identical
-when they have the same member names and recursively equal JSON
-values; object member order is irrelevant, array order is significant,
-and strings are compared exactly. A resource MUST NOT replace the
-bound value even with a numerically equivalent or lower amount.
+Two `budget` objects are identical when they have the same member
+names and recursively equal JSON values: member order is irrelevant,
+array order is significant, strings compare exactly. A resource MUST
+NOT replace the bound value even with a numerically equivalent or
+lower amount.
 
-Before an operation can incur cost, the resource MUST either reserve
-an upper bound for that operation atomically, debit incrementally with
-an atomic check before each chargeable unit, or use another mechanism
-with the same safety property. An operation with no finite cost bound
-MUST be given one, stopped when the remainder is consumed, or refused.
-When a reserved operation completes, the resource atomically commits
-the actual debit and releases the unused reservation. It MUST NOT
-commit more than it reserved.
+Before an operation can incur cost, the resource MUST bound it with
+one of:
 
-A resource MUST restore its ledger after failure without rolling back
-committed debits. When the outcome of an outstanding reservation is
-unknown, it MUST preserve that reservation or otherwise reconcile it
-before admitting work that could exceed the cap.
+- an atomic reservation of the operation's maximum cost;
+- an atomic check before each chargeable unit; or
+- another mechanism with the same safety property.
+
+An operation with no finite cost bound MUST be given one, stopped
+when the remainder is consumed, or refused. When a reserved
+operation completes, the resource atomically commits the actual
+debit — never more than it reserved — and releases the rest.
+
+After a failure the resource MUST restore its ledger without rolling
+back committed debits, and MUST preserve or reconcile any
+reservation of unknown outcome before admitting work that could
+exceed the cap.
 
 A resource SHOULD report each debit in its response and MUST debit
 exactly once per chargeable operation it serves. Retry, idempotency,
 partial-response, and rounding semantics are API surface, pinned by
-profiles. None of those semantics may violate the accounting
-invariant.
+profiles; none of them may violate the accounting invariant.
 
 # Budget State {#state}
 
@@ -459,16 +466,18 @@ members:
   budget is the difference. Unlike a granted `amount`, a `spent`
   amount can be zero.
 
-A budget with no debits yet reports zero `spent`. The response MUST
-be an internally consistent snapshot, MUST include every debit
-committed before that snapshot, and MUST never report `spent` greater
-than `budget`. Outstanding reservations are not included in `spent`.
+The response:
 
-The response MUST include `Cache-Control: no-store` and MUST NOT
-include `sub` or any other identity claim. Agents SHOULD read it
+- MUST be an internally consistent snapshot including every debit
+  committed before it, with `spent` excluding outstanding
+  reservations and never exceeding `budget`;
+- MUST carry `Cache-Control: no-store`; and
+- MUST NOT include `sub` or any other identity claim.
+
+The endpoint is advisory: concurrent work can consume the reported
+remainder immediately after the snapshot. Agents SHOULD read it
 before starting work whose cost is significant relative to the
-remainder. The endpoint is advisory: concurrent work can consume the
-reported remainder immediately after the snapshot.
+remainder.
 
 # Exhaustion {#exhaustion}
 
@@ -485,11 +494,10 @@ request with HTTP status 402 and the error code `budget_exhausted`:
 ~~~
 
 The body shown is AAuth's flat error shape; a profile MAY pin its
-API's native error carriage instead. The refusal MUST NOT itself
-create a debit. The code means that the remaining budget is
-insufficient for this request. An agent MAY retry an operation with a
-smaller finite cost bound when the API permits; increasing the cap
-requires a new mission.
+API's native error carriage instead. The code means the remaining
+budget is insufficient for this request; the refusal MUST NOT itself
+create a debit. An agent MAY retry with a smaller finite cost bound
+when the API permits; increasing the cap requires a new mission.
 
 Payment failures outside the cap (an empty prepaid balance, a failed
 settlement) belong to the resource's payment relationship with the
