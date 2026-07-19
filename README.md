@@ -9,16 +9,16 @@ AAuth missions express intent and tools, never quantity. This
 extension defines the budget: a hard cap on cumulative monetary spend
 at one resource, proposed by the agent, approved by the person at the
 Person Server, committed under the mission's `s256`, carried in every
-auth token, and enforced by the resource that meters its own service.
-A budget is a damage cap, not a payment instrument: a compromised
-agent spends at most the remainder.
+applicable auth token, and enforced by the resource that meters its
+own service. A budget is a damage cap, not a payment instrument: a
+compromised agent spends at most the remainder.
 
-The extension adds four names and no new protocol: one mission member
-(`budgets`), one auth-token claim (`budget`), one resource metadata
-member and endpoint (`budget_endpoint`), and one error code
-(`budget_exhausted`). It deliberately leaves the pricing unit, the
-debit-reporting carriage, the API error shape, and the payment model
-to profiles.
+The extension adds four names on existing AAuth surfaces: one mission
+member (`budgets`), one auth-token claim also used in PS-to-AS
+federation (`budget`), one resource metadata member and endpoint
+(`budget_endpoint`), and one error code (`budget_exhausted`). It
+deliberately leaves the pricing unit, the debit-reporting carriage,
+the API error shape, and the payment model to profiles.
 
 * [Editor's Copy](https://mcguinness.github.io/draft-mcguinness-aauth-budget/#go.draft-mcguinness-aauth-budget.html)
 * [Datatracker Page](https://datatracker.ietf.org/doc/draft-mcguinness-aauth-budget)

@@ -36,6 +36,14 @@ normative:
     date: 2026
     seriesinfo:
       Internet-Draft: draft-hardt-oauth-aauth-protocol-08
+  RFC7519:
+  ISO4217:
+    title: "ISO 4217:2015, Codes for the representation of currencies"
+    target: https://www.iso.org/standard/64758.html
+    author:
+      -
+        org: International Organization for Standardization
+    date: 2015
 
 informative:
   RFC9421:
@@ -59,11 +67,12 @@ person approves says how much an agent may spend. This document
 defines the budget, a hard cap on cumulative monetary spend at one
 resource, proposed by the agent as part of its mission, approved by
 the person at the Person Server, committed under the mission's s256,
-carried in every auth token, and enforced by the resource that meters
-its own service. A budget is a damage cap, not a payment instrument:
-a compromised agent spends at most the remainder. The extension adds
-one mission member, one auth-token claim, one resource metadata
-member, and one error code, and no new protocol.
+carried in every applicable auth token, and enforced by the resource
+that meters its own service. A budget is a damage cap, not a payment
+instrument: a compromised agent spends at most the remainder. The
+extension adds one mission member, one auth-token claim (also used as
+a federation request parameter), one resource metadata member, and
+one error code on existing AAuth surfaces.
 
 --- middle
 
@@ -83,9 +92,10 @@ cumulative spend at one resource:
 - proposed by the agent in its mission proposal;
 - approved, possibly lowered, by the person at the PS;
 - committed under the mission's `s256`, so the cap is immutable and
-  the reference to it is signature-covered on every request;
-- carried in every auth token issued under the mission, so the
-  resource needs no call to the PS; and
+  the mission reference is issuer-signed in the auth token presented
+  on each budgeted request;
+- carried in every auth token issued under the mission for that
+  resource, so the resource needs no call to the PS; and
 - enforced by the resource, which meters its own service and refuses
   further spend once the cap is reached.
 
@@ -94,10 +104,10 @@ substrate already key-binds every token and signs every request; the
 budget bounds the remaining case, agent or key compromise, at the
 amount the person consented to.
 
-The extension adds four names and no new protocol: one mission member
-(`budgets`), one auth-token claim (`budget`), one resource metadata
-member and endpoint (`budget_endpoint`), and one error code
-(`budget_exhausted`).
+The extension adds four names on existing AAuth surfaces: one mission
+member (`budgets`), one auth-token claim also used in PS-to-AS
+federation (`budget`), one resource metadata member and endpoint
+(`budget_endpoint`), and one error code (`budget_exhausted`).
 
 Profiles pin what this document deliberately leaves open: the pricing
 unit a resource publishes, the carriage of per-response debit
@@ -128,6 +138,14 @@ Budget:
 : A hard cap on cumulative monetary spend at one resource under one
   mission, as this document defines it.
 
+Committed debit:
+: A charge durably applied to the meter for a served operation.
+
+Reservation:
+: An amount temporarily held against a budget before or while an
+  operation is served, to prevent concurrent operations from
+  exceeding the cap.
+
 Payee:
 : The resource being paid: the party that prices its own service,
   meters usage, and enforces the budget.
@@ -156,6 +174,9 @@ Consequently:
   ordinary blob member committed under `s256`.
 - Non-monetary quantity caps are out of scope. Budgets are money:
   the one unit every person can consent to.
+- The cap is an accounting invariant, including under concurrency and
+  failure recovery. A deployment that permits in-flight operations to
+  overshoot is not conformant to this document.
 
 # The budgets Mission Member {#budgets}
 
@@ -176,33 +197,54 @@ Each entry has the members:
 
 `resource`:
 : REQUIRED. The resource identifier the cap applies to, an absolute
-  HTTPS URI. At most one entry per resource.
+  HTTPS URL conforming to AAuth's Server Identifier requirements. It
+  is compared by exact string match. At most one entry per resource.
 
 `amount`:
-: REQUIRED. A string. A positive decimal number: the maximum
-  cumulative spend.
+: REQUIRED. A string containing a positive decimal number: the
+  maximum cumulative spend. Its syntax is this document's decimal
+  string: one or more ASCII digits, optionally followed by a period
+  and one or more ASCII digits, where the integer part has no leading
+  zero unless it is exactly `0`, and signs, exponents, grouping
+  characters, and surrounding whitespace are not allowed. The decimal
+  string grammar admits zero; an `amount` MUST be positive.
 
 `currency`:
-: REQUIRED. A string. An ISO 4217 currency code.
+: REQUIRED. A string containing exactly three uppercase ASCII letters
+  and naming a currency registered by ISO 4217 {{ISO4217}}. The
+  special-purpose codes `XTS` (testing) and `XXX` (no currency) MUST
+  NOT be used.
 
-A mission MAY carry entries for several resources; each entry is
-independent. The proposal is a request, never authority: the granted
-values exist only in the approved blob.
+A present `budgets` member MUST be a non-empty array. A mission MAY
+carry entries for several resources; each entry is independent.
+Amounts are compared using exact base-10 arithmetic, not lexical
+comparison or binary floating-point arithmetic that could permit the
+cap to be exceeded. Profiles MAY limit the supported number of digits
+or fractional digits.
+
+The proposal is a request, never authority: the granted values exist
+only in the approved blob. Every granted entry MUST correspond by
+exact `resource` match to a proposed entry, MUST retain its proposed
+`currency`, and MUST have an `amount` numerically less than or equal
+to the proposed amount. The PS MAY omit a proposed entry. It MUST NOT
+add an entry for an unproposed resource.
 
 A profile MAY add members to an entry. Consumers fail closed: a
 Person Server MUST reject a proposal whose `budgets` entries carry
 members it does not recognize or values it cannot render for
 consent, and a resource MUST refuse budgeted access it cannot fully
-enforce ({{claim}}).
+enforce ({{claim}}). A profile that permits a PS to change an added
+member MUST define which changes are attenuating; a granted value
+MUST NOT broaden the proposed authority.
 
 ## Consent {#consent}
 
 The PS authenticates the person and renders each proposed entry: the
 resource, and the amount with its currency. The person or the PS MAY
-grant a lower amount than proposed; the granted amount MUST NOT
-exceed the proposed amount. The blob's `budgets` member carries the
-granted values, and the agent MUST read them from the blob, not from
-its proposal.
+omit an entry or grant a lower amount than proposed, subject to the
+attenuation rules in {{budgets}}. The blob's `budgets` member carries
+the granted values, and the agent MUST read them from the blob, not
+from its proposal.
 
 The mission description is the agent's narrative, not the grant: the
 PS MUST render it sanitized, per AAuth, and visually distinct from
@@ -251,10 +293,11 @@ AAuth-Mission: approver="https://ps.example";
     s256="q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
 ~~~
 
-The reference is covered by the HTTP Message Signature {{RFC9421}}
-on every request that carries it, per AAuth, so the cap the person
-approved is bound to every call made under it. {{e2e}} walks this
-grant end to end.
+On initial access, the reference is carried in the `AAuth-Mission`
+header and covered by the HTTP Message Signature {{RFC9421}}. On
+budgeted access, the same reference and the cap are issuer-signed in
+the auth token, whose `Signature-Key` field is covered by the request
+signature. {{e2e}} walks this grant end to end.
 
 # The budget Auth-Token Claim {#claim}
 
@@ -267,7 +310,7 @@ verbatim, in a `budget` claim, and only that entry:
   "iss": "https://ps.example",
   "dwk": "aauth-person.json",
   "aud": "https://api.search.example",
-  "sub": "p-2c9wqe",
+  "scope": "search",
   "agent": "aauth:scout@agents.example",
   "cnf": { "jwk": { "kty": "OKP", "crv": "Ed25519", "x": "..." } },
   "jti": "at_5Xr8kQ2mVn3pY7wZ1sB4",
@@ -285,25 +328,53 @@ verbatim, in a `budget` claim, and only that entry:
 }
 ~~~
 
-- The entry's `resource` MUST equal the token's `aud`.
+- The entry's `resource` MUST equal the token's `aud`, using exact
+  string comparison.
 - The `mission` claim is AAuth's own. The resource never
   dereferences the blob, so the cap travels in the token and the
   resource needs no call to the PS.
 - Before issuing a token that carries a `budget` claim, the PS MUST
   verify that the mission is active and that the resource token's
-  issuer equals the entry's `resource`. In AAuth's federated mode
-  the PS conveys the granted entry in its federation request, and
-  the Access Server MUST copy it into the auth token it mints.
+  issuer equals the entry's `resource`, using exact string
+  comparison.
 
-A token issued under the mission for a resource with no entry
-carries no `budget` claim and conveys no budgeted access; whatever
-else it conveys is ordinary AAuth authorization, outside this
-document. A resource MUST take the cap only from a verified auth
-token, never from request content or any other source.
+In AAuth's federated mode, when the PS federates a token request for
+a resource with a granted entry, the PS-to-AS request to the Access
+Server's token endpoint MUST include a `budget` parameter whose value
+is that granted entry verbatim. The PS MUST select the entry using
+the resource token's `mission` and `iss` claims; it MUST NOT accept a
+budget value from the agent's token request. The parameter asserts
+the granted entry for the mission named by the accompanying resource
+token's `mission` claim. The Access Server MUST verify that:
 
-Auth tokens remain proof-of-possession and short-lived per AAuth, so
-every renewal repasses the PS gate: a revoked mission stops new
-spend authority within one auth-token lifetime.
+- the resource token carries a `mission` claim, which the Access
+  Server copies into the auth token it mints;
+- the resource token's `iss` equals `budget.resource`; and
+- the auth token it is minting has an `aud` equal to
+  `budget.resource`.
+
+If all checks succeed, the Access Server MUST copy the parameter
+verbatim into the auth token's `budget` claim. If the parameter is
+malformed, cannot be enforced, or is absent where Access Server
+policy requires a budget, it MUST refuse issuance. The Access Server
+never sees the blob and cannot detect an omitted parameter itself;
+the resource's fail-closed rule covers that case, since the minted
+token carries no `budget` claim and conveys no budgeted access. This
+parameter is part of the authenticated AAuth federation exchange; an
+agent cannot supply or modify it.
+
+A token issued under the mission for a resource with no entry carries
+no `budget` claim and conveys no budgeted access; whatever else it
+conveys is ordinary AAuth authorization, outside this document. A
+resource MUST take the cap and mission reference only from a verified
+auth token, never from request content or any other source. If an
+`AAuth-Mission` header is also present, the resource MUST verify that
+it equals the token's `mission` claim before serving the request.
+
+Auth tokens remain proof-of-possession and short-lived per AAuth.
+Re-authorization obtains a fresh resource token and repasses the PS
+gate (and the Access Server in federated mode), so a terminated
+mission cannot create new spend authority.
 
 # Metering {#metering}
 
@@ -312,29 +383,59 @@ The resource is the meter. It MUST:
 - key the meter by the mission reference (`approver`, `s256`): the
   cap is cumulative across all auth tokens and renewals under the
   mission, not per token;
-- debit atomically with serving each request, in the committed
-  currency (a resource that prices in its own units converts at its
-  published relationship, a profile concern); and
-- refuse further budgeted requests once cumulative debits reach the
-  granted amount.
+- durably bind that meter to the complete `budget` value from the
+  first accepted auth token and reject any later token under the same
+  mission reference whose `budget` value is not identical;
+- account in the committed currency, using exact arithmetic (a
+  resource that prices in its own units converts at its published
+  relationship, a profile concern);
+- durably and atomically maintain the invariant that committed debits
+  plus outstanding reservations never exceed the granted amount; and
+- refuse or bound any operation that cannot be served while
+  preserving that invariant.
 
-A request whose worst-case cost cannot fit the remainder MAY be
-refused up front. Exact concurrency control (reserve and commit) is
-out of scope: a resource that admits requests concurrently accepts a
-race bounded by the cost of requests in flight, or refuses up front.
+For the durable binding above, two `budget` objects are identical
+when they have the same member names and recursively equal JSON
+values; object member order is irrelevant, array order is significant,
+and strings are compared exactly. A resource MUST NOT replace the
+bound value even with a numerically equivalent or lower amount.
+
+Before an operation can incur cost, the resource MUST either reserve
+an upper bound for that operation atomically, debit incrementally with
+an atomic check before each chargeable unit, or use another mechanism
+with the same safety property. An operation with no finite cost bound
+MUST be given one, stopped when the remainder is consumed, or refused.
+When a reserved operation completes, the resource atomically commits
+the actual debit and releases the unused reservation. It MUST NOT
+commit more than it reserved.
+
+A resource MUST restore its ledger after failure without rolling back
+committed debits. When the outcome of an outstanding reservation is
+unknown, it MUST preserve that reservation or otherwise reconcile it
+before admitting work that could exceed the cap.
 
 A resource SHOULD report each debit in its response and MUST debit
-once per served response; retry and idempotency semantics are API
-surface, pinned by profiles, as is rounding in unit conversion. The
-committed amount remains the bound under both.
+exactly once per chargeable operation it serves. Retry, idempotency,
+partial-response, and rounding semantics are API surface, pinned by
+profiles. None of those semantics may violate the accounting
+invariant.
 
 # Budget State {#state}
 
 A resource that enforces budgets MUST publish a `budget_endpoint`
-member in its AAuth resource metadata document. The endpoint,
-authenticated like any resource request (signed, with the auth token
-and the mission reference), returns the state of the budget named by
-the presented mission reference:
+member in its AAuth resource metadata document. Its value is an
+absolute HTTPS URL with no query or fragment, on the same origin as
+the resource identifier. This same-origin rule prevents an agent from
+sending its auth token to a different party based on untrusted
+metadata.
+
+The agent makes a signed `GET` request with its auth token. The
+resource verifies the token, signature, `mission`, and `budget` claims
+before looking up or returning state. The token's `mission` claim
+selects the meter; if the request also carries `AAuth-Mission`, it
+must match as specified in {{claim}}. A successful response has
+status 200, content type `application/json`, and the following
+members:
 
 ~~~ json
 {
@@ -355,32 +456,40 @@ the presented mission reference:
 
 `spent`:
 : REQUIRED. Cumulative debits to date, in the same shape. Remaining
-  budget is the difference.
+  budget is the difference. Unlike a granted `amount`, a `spent`
+  amount can be zero.
 
 A budget with no debits yet reports zero `spent`. The response MUST
-reflect every debit committed at the time it is produced.
+be an internally consistent snapshot, MUST include every debit
+committed before that snapshot, and MUST never report `spent` greater
+than `budget`. Outstanding reservations are not included in `spent`.
 
-The response MUST NOT include `sub` or any other identity claim.
-Agents SHOULD read it before starting work whose cost is significant
-relative to the remainder.
+The response MUST include `Cache-Control: no-store` and MUST NOT
+include `sub` or any other identity claim. Agents SHOULD read it
+before starting work whose cost is significant relative to the
+remainder. The endpoint is advisory: concurrent work can consume the
+reported remainder immediately after the snapshot.
 
 # Exhaustion {#exhaustion}
 
-When the cap is reached, the resource refuses with HTTP status 402
-and the error code `budget_exhausted`:
+When no further chargeable work for a request can be admitted while
+preserving the accounting invariant, the resource refuses that
+request with HTTP status 402 and the error code `budget_exhausted`:
 
 ~~~ json
 {
   "error": "budget_exhausted",
   "error_description":
-    "The mission's budget at this resource is spent."
+    "The mission's remaining budget cannot cover this request."
 }
 ~~~
 
 The body shown is AAuth's flat error shape; a profile MAY pin its
-API's native error carriage instead. The code, and the meaning "the
-committed cap is spent, a new mission is the recovery", are this
-document's.
+API's native error carriage instead. The refusal MUST NOT itself
+create a debit. The code means that the remaining budget is
+insufficient for this request. An agent MAY retry an operation with a
+smaller finite cost bound when the API permits; increasing the cap
+requires a new mission.
 
 Payment failures outside the cap (an empty prepaid balance, a failed
 settlement) belong to the resource's payment relationship with the
@@ -389,7 +498,7 @@ profile, not by this document.
 
 # Conformance {#conformance}
 
-An implementation conforms in one of three roles.
+An implementation conforms in one of four roles.
 
 A **budgeted resource**:
 
@@ -398,7 +507,8 @@ A **budgeted resource**:
 - rejects budgeted access on tokens lacking the `mission` or
   `budget` claims, or carrying values it cannot enforce, failing
   closed ({{claim}});
-- meters per {{metering}} and signals exhaustion per {{exhaustion}};
+- preserves the accounting invariant under concurrency and recovery,
+  meters per {{metering}}, and signals exhaustion per {{exhaustion}};
   and
 - keeps identity out of budget-state responses.
 
@@ -409,10 +519,12 @@ A **budgeted agent**:
 - verifies that the approved blob carries a `budgets` member before
   treating the grant as budgeted: a PS that does not implement this
   extension may approve the mission without one;
-- carries the mission reference on every request under the grant,
-  signature-covered, per AAuth; and
-- stops spending against an exhausted budget: recovery is a new
-  mission, decided by the person ({{immutability}}).
+- carries the mission reference in `AAuth-Mission` when AAuth
+  requires it and verifies that issued auth tokens carry the expected
+  `mission` and `budget` claims; and
+- treats `budget_exhausted` as a refusal, retrying only with a smaller
+  bounded operation or requesting a new mission decided by the person
+  ({{immutability}}).
 
 A **Person Server**:
 
@@ -422,8 +534,18 @@ A **Person Server**:
 - issues a token carrying a `budget` claim only while the mission is
   active and only where the token audience equals the entry's
   `resource` ({{claim}}); and
-- carries the `budget` claim in auth tokens it issues, or conveys
-  the granted entry in federation.
+- carries the `budget` claim in auth tokens it issues, or conveys the
+  granted entry using the `budget` federation parameter in {{claim}}.
+
+A **budget-aware Access Server**:
+
+- accepts `budget` only from an authenticated Person Server in the
+  PS-to-AS token request;
+- carries the resource token's mission reference into the auth token
+  and verifies the exact equality among the resource token's issuer,
+  `budget.resource`, and the auth-token audience; and
+- copies the complete `budget` value into the auth token or refuses
+  issuance, as specified in {{claim}}.
 
 # Security Considerations
 
@@ -442,10 +564,18 @@ the payee's meter trustless.
 
 **Consent is the ceiling.** The granted amount never exceeds the
 proposed amount, the blob is immutable under `s256`, and the
-reference is signature-covered per request: what the person approved
-is what every call is bound to, byte-exact. A PS that cannot render
-a proposed entry rejects the proposal rather than approving what the
-person could not see ({{budgets}}).
+reference and budget are issuer-signed in the auth token used to
+verify each request: what the person approved is what every call is
+bound to, byte-exact. A PS that cannot render a proposed entry rejects
+the proposal rather than approving what the person could not see
+({{budgets}}).
+
+**Accounting state is authorization state.** Atomic reservation,
+commit, and durable recovery are necessary to the hard-cap claim. A
+resource that rolls its meter back, races independent workers, or
+charges after service without first bounding the charge can exceed
+the approved amount. Such an implementation is not conformant even
+if each worker is locally correct.
 
 **Issuance is the gate.** Every auth token under a mission passes
 the PS, and tokens are short-lived per AAuth, so revocation latency
@@ -472,13 +602,17 @@ enforce or audit it: the PS, the agent, and the named resource.
 
 # IANA Considerations {#iana}
 
-This document has no IANA actions. The members it defines ride
-inside structures whose extensibility their defining specification
-states: `budgets` in the PS-produced mission blob, `budget` in the
-auth token, and `budget_endpoint` in the resource metadata document,
-whose unrecognized members AAuth consumers ignore. Should AAuth
-establish registries for those structures, the members this document
-defines would be registered there.
+IANA is requested to register the following claim in the "JSON Web
+Token Claims" registry established by {{RFC7519}}:
+
+| Claim Name | Claim Description | Change Controller | Reference |
+|---|---|---|---|
+| `budget` | Mission budget for the token audience | IETF | {{claim}} |
+
+The `budgets` mission member, `budget` federation parameter,
+`budget_endpoint` resource metadata member, and `budget_exhausted`
+application error code are defined on AAuth or application surfaces
+that currently have no corresponding IANA registries.
 
 --- back
 
@@ -663,6 +797,7 @@ Signature-Key: sig=jwt;jwt="eyJ..auth-token.."
 ~~~ http-message
 HTTP/1.1 200 OK
 Content-Type: application/json
+Cache-Control: no-store
 
 {
   "active": true,
@@ -671,8 +806,8 @@ Content-Type: application/json
 }
 ~~~
 
-The digest keeps running. When cumulative debits reach the cap, the
-next request fails closed:
+The digest keeps running. When the remaining budget can no longer
+cover a request, the resource fails closed:
 
 ~~~ http-message
 HTTP/1.1 402 Payment Required
@@ -681,7 +816,7 @@ Content-Type: application/json
 {
   "error": "budget_exhausted",
   "error_description":
-    "The mission's budget at this resource is spent."
+    "The mission's remaining budget cannot cover this request."
 }
 ~~~
 
