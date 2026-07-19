@@ -51,22 +51,6 @@ informative:
         ins: K. McGuinness
         name: Karl McGuinness
     date: 2026
-  I-D.draft-mcguinness-mission-aauth:
-    title: "Mission-Bound Authorization for AAuth"
-    target: https://mcguinness.github.io/mission-bound-authorization/draft-mcguinness-mission-aauth.html
-    author:
-      -
-        ins: K. McGuinness
-        name: Karl McGuinness
-    date: 2026
-  I-D.draft-mcguinness-mission-metering:
-    title: "Mission Consumption Metering"
-    target: https://mcguinness.github.io/mission-bound-authorization/draft-mcguinness-mission-metering.html
-    author:
-      -
-        ins: K. McGuinness
-        name: Karl McGuinness
-    date: 2026
 
 --- abstract
 
@@ -164,13 +148,12 @@ Consequently:
 - A budget bounds spend at the named resource. It does not bound
   agent behavior across resources.
 - Cross-resource aggregate spend, call-count caps, and duration caps
-  are governance-layer consumption bounds with distributed-counting
-  machinery of their own, and are out of scope. Mission governance
-  profiles for AAuth Person Servers address that layer
-  ({{I-D.draft-mcguinness-mission-aauth}},
-  {{I-D.draft-mcguinness-mission-metering}}); this extension
-  requires none of them and composes with them unchanged, since
-  `budgets` is an ordinary blob member committed under `s256`.
+  are governance-layer consumption bounds: metering them exactly
+  across decision points is a distributed-counting problem with
+  reserve, commit, and settlement machinery of its own, and is out
+  of scope. Governance profiles that meter at a policy decision
+  point compose with this extension unchanged, since `budgets` is an
+  ordinary blob member committed under `s256`.
 - Non-monetary quantity caps are out of scope. Budgets are money:
   the one unit every person can consent to.
 
@@ -202,6 +185,10 @@ Each entry has the members:
 `currency`:
 : REQUIRED. A string. An ISO 4217 currency code.
 
+A mission MAY carry entries for several resources; each entry is
+independent. The proposal is a request, never authority: the granted
+values exist only in the approved blob.
+
 A profile MAY add members to an entry. Consumers fail closed: a
 Person Server MUST reject a proposal whose `budgets` entries carry
 members it does not recognize or values it cannot render for
@@ -226,9 +213,10 @@ the amounts it asks the person to approve.
 The blob is immutable under `s256`, so a budget cannot be raised in
 place. A top-off is a new mission proposal; the person decides.
 AAuth's permission endpoint is not used for budget changes, because
-the cap is committed under `s256`. When a budget is spent or the
-task is done, the agent SHOULD propose completion with a summary
-that includes total spend.
+the cap is committed under `s256`. A budget has no lifetime of its
+own: it ends with the mission. When a budget is spent or the task is
+done, the agent SHOULD propose completion with a summary that
+includes total spend.
 
 ## Worked Example {#example}
 
@@ -265,7 +253,8 @@ AAuth-Mission: approver="https://ps.example";
 
 The reference is covered by the HTTP Message Signature {{RFC9421}}
 on every request that carries it, per AAuth, so the cap the person
-approved is bound to every call made under it.
+approved is bound to every call made under it. {{e2e}} walks this
+grant end to end.
 
 # The budget Auth-Token Claim {#claim}
 
@@ -300,11 +289,17 @@ verbatim, in a `budget` claim, and only that entry:
 - The `mission` claim is AAuth's own. The resource never
   dereferences the blob, so the cap travels in the token and the
   resource needs no call to the PS.
-- Before issuing, the PS MUST verify that the mission is active and
-  that the resource token's issuer matches a granted entry's
-  `resource`. In AAuth's federated mode the PS conveys the granted
-  entry in its federation request, and the Access Server MUST copy
-  it into the auth token it mints.
+- Before issuing a token that carries a `budget` claim, the PS MUST
+  verify that the mission is active and that the resource token's
+  issuer equals the entry's `resource`. In AAuth's federated mode
+  the PS conveys the granted entry in its federation request, and
+  the Access Server MUST copy it into the auth token it mints.
+
+A token issued under the mission for a resource with no entry
+carries no `budget` claim and conveys no budgeted access; whatever
+else it conveys is ordinary AAuth authorization, outside this
+document. A resource MUST take the cap only from a verified auth
+token, never from request content or any other source.
 
 Auth tokens remain proof-of-possession and short-lived per AAuth, so
 every renewal repasses the PS gate: a revoked mission stops new
@@ -328,8 +323,10 @@ refused up front. Exact concurrency control (reserve and commit) is
 out of scope: a resource that admits requests concurrently accepts a
 race bounded by the cost of requests in flight, or refuses up front.
 
-A resource SHOULD report each debit in its response; the carriage is
-API surface, pinned by profiles.
+A resource SHOULD report each debit in its response and MUST debit
+once per served response; retry and idempotency semantics are API
+surface, pinned by profiles, as is rounding in unit conversion. The
+committed amount remains the bound under both.
 
 # Budget State {#state}
 
@@ -349,7 +346,8 @@ the presented mission reference:
 
 `active`:
 : REQUIRED. A boolean. Whether the resource still serves budgeted
-  requests under this mission.
+  requests under this mission: `false` once the cap is reached or
+  the resource has otherwise stopped serving the grant.
 
 `budget`:
 : REQUIRED. The granted cap, as committed: an object with `amount`
@@ -358,6 +356,9 @@ the presented mission reference:
 `spent`:
 : REQUIRED. Cumulative debits to date, in the same shape. Remaining
   budget is the difference.
+
+A budget with no debits yet reports zero `spent`. The response MUST
+reflect every debit committed at the time it is produced.
 
 The response MUST NOT include `sub` or any other identity claim.
 Agents SHOULD read it before starting work whose cost is significant
@@ -405,6 +406,9 @@ A **budgeted agent**:
 
 - proposes caps via `budgets` and reads the granted values from the
   approved blob ({{consent}});
+- verifies that the approved blob carries a `budgets` member before
+  treating the grant as budgeted: a PS that does not implement this
+  extension may approve the mission without one;
 - carries the mission reference on every request under the grant,
   signature-covered, per AAuth; and
 - stops spending against an exhausted budget: recovery is a new
@@ -415,8 +419,9 @@ A **Person Server**:
 - renders consent per {{consent}} and supports granting lower
   amounts;
 - returns the granted entries in the approved blob;
-- gates issuance on mission state and on the resource matching a
-  granted entry ({{claim}}); and
+- issues a token carrying a `budget` claim only while the mission is
+  active and only where the token audience equals the entry's
+  `resource` ({{claim}}); and
 - carries the `budget` claim in auth tokens it issues, or conveys
   the granted entry in federation.
 
@@ -476,6 +481,242 @@ establish registries for those structures, the members this document
 defines would be registered there.
 
 --- back
+
+# Complete Protocol Exchange {#e2e}
+
+This appendix is non-normative. It walks the digest agent of
+{{example}} through one full grant: proposal, approval, challenge,
+issuance, spend, state, exhaustion, and completion. JWTs are
+abbreviated, signatures are elided, and AAuth's interaction
+machinery is reduced to its shape; AAuth's own examples govern the
+substrate details. Later messages also elide `Signature-Input` and
+`Signature`; every request remains signed as the first ones show.
+
+The agent `aauth:scout@agents.example` proposes a mission at the
+person's PS, asking for a $5.00 cap:
+
+~~~ http-message
+POST /mission HTTP/1.1
+Host: ps.example
+Content-Type: application/json
+Signature-Input: sig=("@method" "@authority" "@path"
+    "signature-key");created=1784365200
+Signature: sig=:...:
+Signature-Key: sig=jwt;jwt="eyJ..agent-token.."
+
+{
+  "description":
+    "Compile a daily digest of Doppler launch coverage this week.",
+  "tools": [
+    { "name": "search.query",
+      "description": "Web search at api.search.example" }
+  ],
+  "budgets": [
+    { "resource": "https://api.search.example",
+      "amount": "5.00",
+      "currency": "USD" }
+  ]
+}
+~~~
+
+Review is asynchronous; the PS defers while the person looks:
+
+~~~ http-message
+HTTP/1.1 202 Accepted
+Location: https://ps.example/pending/m7Qk
+Retry-After: 5
+Content-Type: application/json
+
+{ "status": "pending" }
+~~~
+
+The person approves at a lower cap, $2.00. Polling the pending URL
+now returns the approved mission: the blob of {{example}}, byte for
+byte, with its reference in the response header:
+
+~~~ http-message
+HTTP/1.1 200 OK
+AAuth-Mission: approver="https://ps.example";
+    s256="q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+Content-Type: application/json
+
+{
+  "approver": "https://ps.example",
+  "agent": "aauth:scout@agents.example",
+  "approved_at": "2026-07-18T09:05:42Z",
+  ...
+  "budgets": [
+    { "resource": "https://api.search.example",
+      "amount": "2.00",
+      "currency": "USD" }
+  ]
+}
+~~~
+
+The agent reads the granted cap from the blob: it asked for $5.00
+and holds $2.00. It stores the bytes exactly as received and turns
+to the resource. The first request is signed with its agent token
+and carries the mission reference; the resource answers with the
+challenge and a resource token:
+
+~~~ http-message
+GET /search?q=doppler+launch HTTP/1.1
+Host: api.search.example
+AAuth-Mission: approver="https://ps.example";
+    s256="q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+Signature-Input: sig=("@method" "@authority" "@path"
+    "signature-key" "aauth-mission");created=1784386740
+Signature: sig=:...:
+Signature-Key: sig=jwt;jwt="eyJ..agent-token.."
+~~~
+
+~~~ http-message
+HTTP/1.1 401 Unauthorized
+AAuth-Requirement: requirement=auth-token;
+    resource-token="eyJ..resource-token.."
+~~~
+
+The resource token names the agent and copies the mission reference
+from the header. Its payload:
+
+~~~ json
+{
+  "iss": "https://api.search.example",
+  "dwk": "aauth-resource.json",
+  "aud": "https://ps.example",
+  "agent": "aauth:scout@agents.example",
+  "agent_jkt": "kV9CqXP3...",
+  "scope": "search",
+  "mission": {
+    "approver": "https://ps.example",
+    "s256": "q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+  },
+  "jti": "rt_3Fq9xWv2",
+  "iat": 1784386740,
+  "exp": 1784387040
+}
+~~~
+
+The agent exchanges it at the PS. The mission is active and the
+resource token's issuer equals the entry's `resource`, so the PS
+issues the auth token of {{claim}}, `budget` claim and all:
+
+~~~ http-message
+POST /token HTTP/1.1
+Host: ps.example
+Content-Type: application/json
+AAuth-Mission: approver="https://ps.example";
+    s256="q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+Signature-Input: sig=("@method" "@authority" "@path"
+    "signature-key" "aauth-mission");created=1784386790
+Signature: sig=:...:
+Signature-Key: sig=jwt;jwt="eyJ..agent-token.."
+
+{
+  "resource_token": "eyJ..resource-token..",
+  "justification": "Search for today's launch coverage."
+}
+~~~
+
+~~~ http-message
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{ "auth_token": "eyJ..auth-token..", "expires_in": 3600 }
+~~~
+
+The agent retries the search, now signed with the key the auth
+token's `cnf.jwk` names. The resource verifies token, signature,
+and reference equality, serves, and debits the grant, reporting the
+debit in its own carriage (illustrative here; profiles pin it):
+
+~~~ http-message
+GET /search?q=doppler+launch HTTP/1.1
+Host: api.search.example
+AAuth-Mission: approver="https://ps.example";
+    s256="q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+Signature-Key: sig=jwt;jwt="eyJ..auth-token.."
+~~~
+
+~~~ http-message
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "results": [ "..." ],
+  "debit": { "amount": "0.01", "currency": "USD" }
+}
+~~~
+
+Three days in, each hour's auth token re-obtained through the same
+exchange, the agent checks the meter before a deeper crawl, at the
+endpoint the resource metadata names in `budget_endpoint`:
+
+~~~ http-message
+GET /budget HTTP/1.1
+Host: api.search.example
+AAuth-Mission: approver="https://ps.example";
+    s256="q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+Signature-Key: sig=jwt;jwt="eyJ..auth-token.."
+~~~
+
+~~~ http-message
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "active": true,
+  "budget": { "amount": "2.00", "currency": "USD" },
+  "spent": { "amount": "0.31", "currency": "USD" }
+}
+~~~
+
+The digest keeps running. When cumulative debits reach the cap, the
+next request fails closed:
+
+~~~ http-message
+HTTP/1.1 402 Payment Required
+Content-Type: application/json
+
+{
+  "error": "budget_exhausted",
+  "error_description":
+    "The mission's budget at this resource is spent."
+}
+~~~
+
+The week is over and the task is done, so instead of proposing a
+top-off mission the agent proposes completion, spend in the summary:
+
+~~~ http-message
+POST /interaction HTTP/1.1
+Host: ps.example
+Content-Type: application/json
+AAuth-Mission: approver="https://ps.example";
+    s256="q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+Signature-Key: sig=jwt;jwt="eyJ..agent-token.."
+
+{
+  "type": "completion",
+  "summary":
+    "Week's digest complete. Spent $2.00 of the $2.00 budget."
+}
+~~~
+
+The person accepts; the PS terminates the mission. Any later token
+request under the reference fails closed:
+
+~~~ json
+{
+  "error": "mission_terminated",
+  "error_description": "This mission has ended."
+}
+~~~
+
+Every message above rides AAuth surfaces unchanged. The extension's
+whole footprint is the `budgets` member proposed and granted, the
+`budget` claim issued, the meter and its endpoint at the resource,
+and the 402 that ends the spending.
 
 # Acknowledgments
 {:numbered="false"}
