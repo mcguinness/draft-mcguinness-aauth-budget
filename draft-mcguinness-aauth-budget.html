@@ -1,0 +1,1856 @@
+<!DOCTYPE html>
+<html lang="en" class="Internet-Draft">
+<head>
+<meta charset="utf-8">
+<meta content="Common,Latin" name="scripts">
+<meta content="initial-scale=1.0" name="viewport">
+<title>Budgeted Missions for AAuth</title>
+<meta content="Karl McGuinness" name="author">
+<meta content="
+       AAuth missions express intent and tools, never quantity: nothing a
+person approves says how much an agent may spend. This document
+defines the budget, a hard cap on cumulative monetary spend at one
+resource, proposed by the agent as part of its mission, approved by
+the person at the Person Server, committed under the mission's s256,
+carried in every auth token, and enforced by the resource that meters
+its own service. A budget is a damage cap, not a payment instrument:
+a compromised agent spends at most the remainder. The extension adds
+one mission member, one auth-token claim, one resource metadata
+member, and one error code, and no new protocol. 
+    " name="description">
+<meta content="xml2rfc 3.34.0" name="generator">
+<meta content="aauth" name="keyword">
+<meta content="agent" name="keyword">
+<meta content="budget" name="keyword">
+<meta content="spend cap" name="keyword">
+<meta content="metering" name="keyword">
+<meta content="authorization" name="keyword">
+<meta content="draft-mcguinness-aauth-budget-latest" name="ietf.draft">
+<!-- Generator version information:
+  xml2rfc 3.34.0
+    Python 3.14.5
+    ConfigArgParse 1.7.5
+    google-i18n-address 3.1.1
+    intervaltree 3.2.1
+    Jinja2 3.1.6
+    lxml 6.1.1
+    natsort 8.4.0
+    platformdirs 4.10.1
+    pycountry 24.6.1
+    PyYAML 6.0.3
+    requests 2.33.1
+    wcwidth 0.8.2
+-->
+<link href="draft-mcguinness-aauth-budget.xml" rel="alternate" type="application/rfc+xml">
+<link href="#copyright" rel="license">
+<style type="text/css">@font-face {
+  font-family: 'Lora';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Italic'), local('Lora-Italic'), url('https://martinthomson.github.io/rfc-css/fonts/lora-italic-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C88, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Italic'), local('Lora-Italic'), url('https://martinthomson.github.io/rfc-css/fonts/lora-italic-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Italic'), local('Lora-Italic'), url('https://martinthomson.github.io/rfc-css/fonts/lora-italic-vietnamese.woff2') format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+1EA0-1EF9, U+20AB;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Italic'), local('Lora-Italic'), url('https://martinthomson.github.io/rfc-css/fonts/lora-italic-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Lora';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Italic'), local('Lora-Italic'), url('https://martinthomson.github.io/rfc-css/fonts/lora-italic-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Regular'), local('Lora-Regular'), url('https://martinthomson.github.io/rfc-css/fonts/lora-regular-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C88, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Regular'), local('Lora-Regular'), url('https://martinthomson.github.io/rfc-css/fonts/lora-regular-cyrillic.woff2') format('woff2');
+  unicode-range: U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Regular'), local('Lora-Regular'), url('https://martinthomson.github.io/rfc-css/fonts/lora-regular-vietnamese.woff2') format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+1EA0-1EF9, U+20AB;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Regular'), local('Lora-Regular'), url('https://martinthomson.github.io/rfc-css/fonts/lora-regular-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Regular'), local('Lora-Regular'), url('https://martinthomson.github.io/rfc-css/fonts/lora-regular-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('Lora Bold'), local('Lora-Bold'), url('https://martinthomson.github.io/rfc-css/fonts/lora-bold-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C88, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('Lora Bold'), local('Lora-Bold'), url('https://martinthomson.github.io/rfc-css/fonts/lora-bold-cyrillic.woff2') format('woff2');
+  unicode-range: U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('Lora Bold'), local('Lora-Bold'), url('https://martinthomson.github.io/rfc-css/fonts/lora-bold-vietnamese.woff2') format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+1EA0-1EF9, U+20AB;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('Lora Bold'), local('Lora-Bold'), url('https://martinthomson.github.io/rfc-css/fonts/lora-bold-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('Lora Bold'), local('Lora-Bold'), url('https://martinthomson.github.io/rfc-css/fonts/lora-bold-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: local('Lora SemiBold'), local('Lora-SemiBold'), url('https://martinthomson.github.io/rfc-css/fonts/lora-semibold-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Oxygen Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Oxygen Mono'), local('OxygenMono-Regular'), url('https://martinthomson.github.io/rfc-css/fonts/oxygenmono-regular-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Oxygen Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Oxygen Mono'), local('OxygenMono-Regular'), url('https://martinthomson.github.io/rfc-css/fonts/oxygenmono-regular-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+}
+
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: italic;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-italic-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: italic;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-italic-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: italic;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-italic-greek.woff2') format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: italic;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-italic-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: italic;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-italic-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: normal;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-regular-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: normal;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-regular-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: normal;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-regular-greek.woff2') format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: normal;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-regular-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: normal;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-regular-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  color-scheme: light dark;
+  --background-color: #fff;
+  --text-color: #222;
+  --title-color: #191919;
+  --link-color: #2a6496;
+  --highlight-color: #f9f9f9;
+  --line-color: #eee;
+  --pilcrow-weak: #ddd;
+  --pilcrow-strong: #bbb;
+  --small-font-size: 14.5px;
+  --font-mono: 'Oxygen Mono', monospace;
+  --font-title: "Sofia Sans Semi Condensed", sans-serif;
+  scrollbar-color: #bbb #eee;
+}
+body {
+  max-width: 600px;
+  margin: 75px auto;
+  padding: 0 5px;
+  color: var(--text-color);
+  background-color: var(--background-color);
+  font: 16px/22px "Lora", serif;
+  scroll-behavior: smooth;
+}
+
+.ears {
+  display: none;
+}
+
+/* headings */
+section {
+  clear: both;
+}
+.section-number {
+  padding-right: 0.5em;
+}
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-title);
+  font-weight: 680;
+  margin: 0.8em 0 0.3em;
+  font-size-adjust: 0.5;
+  color: var(--title-color);
+}
+h1 {
+  &#title {
+    font-size: 32px;
+    line-height: 40px;
+    clear: both;
+    margin: 1.5em 0 0.2em;
+  }
+  &#rfcnum {
+    margin: 1.5em 0 0.2em;
+    & + h1#title {
+      margin: 0.2em 0;
+    }
+  }
+}
+
+h1, h2, h3 {
+  font-size: 22px;
+  line-height: 27px;
+}
+h4, h5, h6 {
+  font-size: 20px;
+  line-height: 24px;
+}
+
+/* general structure */
+.author {
+  padding-bottom: 0.3em;
+  vertical-align: top;
+}
+#abstract+p {
+  font-size: 18px;
+  line-height: 24px;
+  & code, & samp, & tt {
+    font-size: 16px;
+    line-height: 0;
+  }
+}
+
+p {
+  padding: 0;
+  margin: 0.5em 0;
+  text-align: left;
+}
+div {
+  margin: 0;
+}
+.alignRight {
+  margin: 1em 0;
+  &.art-text {
+    background-color: var(--highlight-color);
+    border: 1px solid var(--line-color);
+    border-radius: 3px;
+    padding: 0.5em 1em 0;
+    margin-bottom: 0.5em;
+    & pre {
+      padding: 0;
+      width: auto;
+    }
+  }
+  & > *:first-child {
+    border: none;
+    margin: 0;
+    float: right;
+    clear: both;
+  }
+  & > *:nth-child(2) {
+    clear: both;
+    display: block;
+    border: none;
+  }
+}
+svg {
+  display: block;
+  /* font-family isn't space-separated, but =~ will have to do */
+  &[font-family~="monospace" i], & [font-family~="monospace" i] {
+    font-family: var(--font-mono);
+  }
+}
+.alignCenter {
+  margin: 1em 0;
+  &.art-text {
+    background-color: var(--highlight-color);
+    border: 1px solid var(--line-color);
+    border-radius: 3px;
+    padding: 0.5em 1em 0;
+    margin-bottom: 0.5em;
+    & pre {
+      padding: 0;
+      width: auto;
+    }
+  }
+  & > *:first-child {
+    border: none;
+    /* this isn't optimal, but it's an existence proof.  PrinceXML doesn't
+       support flexbox yet.
+    */
+    display: table;
+    margin: 0 auto;
+  }
+}
+
+/* lists */
+ol, ul {
+  padding: 0;
+  margin: 0 0 0.5em 2em;
+  & :is(ol, ul) {
+    margin-left: 1em;
+  }
+}
+li {
+  margin: 0 0 0.25em 0;
+}
+ul.empty, .ulEmpty {
+  list-style-type: none;
+  & li {
+    margin-top: 0.5em;
+  }
+}
+:is(ul, ol).compact, .ulCompact, .olCompact {
+  margin: 0 0 0 2em;
+  & li {
+    margin: 0;
+    & :first-child { margin-top: 0; }
+    & :last-child { margin-bottom: 0; }
+  }
+}
+
+/* definition lists */
+dl {
+  clear: left;
+  --indent: 3ch;
+  /* --indent: attr(indent ch); not supported in any browser, but we can dream */
+  &.olPercent {
+    --indent: 5ch;
+    & > dt {
+      min-width: calc(var(--indent) - 2ch);
+      float: none;
+    }
+  }
+
+  dl > dd > & {
+    margin-top: 0.5em;
+    margin-bottom: 0;
+  }
+
+  &:not(.dlNewline) > dt {
+    float: left;
+    margin-right: 2ch;
+    min-width: 8ch;
+  }
+  & > dd {
+    margin-bottom: .8em;
+    margin-left: var(--indent) !important; /* stupid element overrides */
+    min-height: 2ex;
+  }
+}
+:is(dl.compact, .dlCompact) > dd {
+  margin-bottom: 0;
+  & > :is(:first-child, .break:first-child + *) {
+    margin-top: 0;
+  }
+  & > :is(:last-child) {
+    margin-bottom: 0;
+  }
+}
+:is(dd, span).break {
+  display: none;
+}
+
+/* links */
+a {
+  text-decoration: none;
+  &[href] {
+    color: var(--link-color);
+    &:hover { text-decoration: underline; }
+    &.selfRef {
+      color: var(--text-color);
+      &:hover {
+        text-decoration: none;
+        background-color: var(--highlight-color);
+      }
+    }
+  }
+}
+.iref + a[href].internal {
+  color: var(--text-color);
+}
+a.xref:is(.cite, .auto), :is(#status-of-memo, #copyright) a {
+  white-space: nowrap;
+}
+
+/* Figures */
+tt, code, pre {
+  background-color: var(--highlight-color);
+  font: 14px/22px var(--font-mono);
+}
+tt, code {
+  /* changing the font for inline elements leads to different ascender
+     and descender heights; as we want to retain baseline alignment,
+     remove leading to avoid altering the final height of lines
+     note: this fails if these blocks take an entire line,
+     a different solution would be great */
+  line-height: 0;
+}
+:is(h1, h2, h3, h4, h5, h6) :is(tt, code) {
+  font-size: 84%;
+}
+pre {
+  border: 1px solid var(--line-color);
+  font-size: 13.5px;
+  line-height: 16px;
+  letter-spacing: -0.2px;
+  margin: 5px;
+  padding: 5px;
+}
+img {
+  max-width: 100%;
+}
+figure {
+  margin: 0.5em 0;
+  padding: 0;
+  & blockquote {
+    margin: 0.8em 0.4em 0.4em;
+  }
+}
+figcaption, caption {
+  font-style: italic;
+  margin: 0.5em 1.5em;
+  text-align: left;
+  caption-side: bottom;
+}
+@media screen {
+  /* Auto-collapse boilerplate. */
+  :is(#status-of-memo, #copyright) {
+    & p {
+      margin: -2px 0;
+      max-height: 0;
+      transition: max-height 2s ease, margin 0.5s ease 0.5s;
+      overflow: hidden;
+    }
+    &:hover p,
+    & h2:target ~ p {
+      margin: 0.5em 0;
+      max-height: 500px;
+      overflow: auto;
+    }
+  }
+  pre, svg {
+    display: inline-block;
+    /* In the horizontal direction, sometimes people make over-sized figures.
+       Scrollbars for those is therefore necessary: auto adds them as necessary..
+       In the vertical direction, the line-height can combine with the font
+       asender/descender height to produce scrollbars: hidden avoids that. */
+    overflow: auto hidden;
+  }
+  pre {
+    max-width: 100%;
+    width: calc(100% - 22px - 1em);
+  }
+  svg {
+    max-width: calc(100% - 22px - 1em);
+  }
+  figure pre {
+    display: block;
+    width: calc(100% - 25px);
+  }
+  :is(pre, svg) + .pilcrow {
+    display: inline-block;
+    vertical-align: text-bottom;
+    padding-bottom: 8px;
+  }
+}
+
+/* aside, blockquote */
+aside, blockquote {
+  margin-left: 0;
+  padding: 0 2em;
+  font-style: italic;
+}
+blockquote {
+  margin: 1em 0;
+  border-left: 2px var(--pilcrow-strong) solid;
+}
+cite {
+  display: block;
+  text-align: right;
+  font-style: italic;
+}
+
+/* tables */
+table {
+  width: auto;
+  max-width: 100%;
+  margin: 0 0 1em;
+  border-collapse: collapse;
+  &.right { margin-left: auto; }
+  &.center { margin-left: auto; margin-right: auto; }
+  &.left { margin-right: auto; }
+  & .text-left { text-align: left; }
+  & .text-center { text-align: center; }
+  & .text-right { text-align: right; }
+  & caption {
+    margin: 0;
+    padding: 3px 0 3px 1em;
+  }
+  & p { margin: 0; }
+}
+
+thead, tbody {
+  border: 1px solid var(--line-color);
+}
+th, td {
+  text-align: left;
+  vertical-align: top;
+  padding: 5px 10px;
+}
+th {
+  background-color: var(--line-color);
+}
+:is(tr:nth-child(2n), thead+tbody > tr:nth-child(2n+1)) > td {
+  background-color: var(--background-color);
+}
+:is(tr:nth-child(2n+1), thead+tbody > tr:nth-child(2n)) > td {
+  background-color: var(--highlight-color);
+}
+
+/* pilcrow */
+a.pilcrow {
+  margin-left: 3px;
+  opacity: 0.2;
+  user-select: none;
+  &[href] {
+    color: var(--pilcrow-weak);
+    &:hover { text-decoration: none; }
+  }
+  @media not print {
+    :hover > &, &:focus {
+      opacity: 1;
+    }
+    &[href]:hover {
+      color: var(--pilcrow-strong);
+      background-color: transparent;
+    }
+  }
+  @media print {
+    display: none;
+  }
+}
+
+/* misc */
+hr {
+  border: 0;
+  border-top: 1px solid var(--line-color);
+}
+.bcp14 {
+  font-variant: small-caps;
+  font-weight: 600;
+  font-size: var(--small-font-size);
+}
+.role {
+  font-variant: all-small-caps;
+}
+sub, sup {
+  line-height: 1;
+  font-size: 80%;
+}
+
+/* info block */
+#identifiers {
+  margin: 0;
+  font-size: var(--small-font-size);
+  line-height: 18px;
+  --identifier-width: 15ch;
+  & dt {
+    width: var(--identifier-width);
+    min-width: var(--identifier-width);
+    clear: left;
+    float: left;
+    text-align: right;
+    margin-right: 1ch;
+  }
+  & dd {
+    margin: 0;
+    margin-left: calc(1em + var(--identifier-width)) !important;
+    min-width: 5em;
+  }
+  & .authors {
+    & .author {
+      display: inline-block;
+      margin-right: 1.5em;
+    }
+    & .org {
+      font-style: italic;
+    }
+  }
+}
+
+/* The prepared/rendered info at the very bottom of the page */
+.docInfo {
+  color: #999;
+  font-size: 0.9em;
+  font-style: italic;
+  margin-top: 2em;
+  & .prepared {
+    float: right;
+  }
+}
+
+/* table of contents */
+#toc {
+  padding: 0.75em 0 2em 0;
+  margin-bottom: 1em;
+
+  & nav {
+    & ul {
+      margin: 0 0.5em 0 0;
+      padding: 0;
+      list-style: none;
+    }
+    & li {
+      line-height: 1.3em;
+      margin: 2px 0;
+      padding-left: 1.2em;
+      text-indent: -1.2em;
+    }
+  }
+  & a.xref {
+    white-space: normal;
+  }
+}
+
+.references {
+  & > dt {
+    text-align: right;
+    font-weight: bold;
+    min-width: 10ch;
+    margin-right: 1.5ch;
+    &:target::before {
+      content: "⇒";
+      margin: 0 10px 0 -25px;
+    }
+  }
+  & > dd {
+    margin-left: 12ch !important;
+    overflow: visible;
+    & .refInstance {
+      margin-bottom: 0.8em;
+    }
+    & .ascii {
+      margin-bottom: 0.25em;
+    }
+  }
+}
+
+#rfc\.index\.index + ul {
+  margin-left: 0;
+}
+
+/* authors */
+address.vcard {
+  font-style: normal;
+  max-width: 20em;
+  margin: 1em auto 1em 0;
+
+  & .nameRole {
+    font-weight: 700;
+    margin-left: 0;
+  }
+  & .label {
+    margin: 0.5em 0;
+  }
+  & .type {
+    display: none;
+  }
+  & .alternative-contact {
+    margin: 0.5em 0 0.25em 0;
+  }
+  & .non-ascii {
+    margin: 0 0 0 2em;
+  }
+  & div.left {
+    text-align: left;
+  }
+  & div.right {
+    text-align: right;
+  }
+}
+
+hr.addr {
+  border-top: 1px dashed;
+  margin: 0;
+  color: #ddd;
+  max-width: calc(100% - 16px);
+}
+@media (min-width: 500px) {
+  #authors-addresses {
+    & > section {
+      column-count: 2;
+      column-gap: 20px;
+    }
+    & > section > h2 {
+      column-span: all;
+    }
+    /* hack for break-inside: avoid-column */
+    & address {
+      display: inline-block;
+      break-inside: avoid-column;
+    }
+  }
+}
+
+/* Comments */
+.rfcEditorRemove {
+  & p:first-of-type {
+    font-style: italic;
+  }
+}
+.cref {
+  background-color: rgba(249, 232, 105, 0.3);
+  padding: 2px 4px;
+}
+.crefSource {
+  font-style: italic;
+}
+
+@media screen {
+  #toc {
+    & nav {
+      font-family: var(--font-title);
+      font-weight: 360;
+      & > ul { margin-bottom: 2em; }
+      & ul {
+        margin: 0 0 0 4px;
+        & :is(p, li) {
+          margin: 2px 0;
+        }
+      }
+    }
+    & a.toplink {
+      float: right;
+    }
+  }
+}
+@media not screen {
+  #toc a.toplink {
+    display: none;
+  }
+}
+
+
+/* TOC layout for smaller screens */
+@media screen and (max-width: 929px) {
+  #toc {
+    position: fixed;
+    z-index: 2;
+    top: 0;
+    right: 0;
+    padding: 1px 0 0 0;
+    margin: 0;
+    border-bottom: 1px solid #ccc;
+    opacity: 0.6;
+    & h2 {
+      margin: 0;
+      padding: 2px 0 2px 6px;
+      padding-right: 1em;
+      font-size: 18px;
+      line-height: 24px;
+      min-width: 190px;
+      text-align: right;
+      background-color: #444;
+      color: white;
+      cursor: pointer;
+      &::before { /* css hamburger */
+        float: right;
+        position: relative;
+        width: 1em;
+        height: 1px;
+        left: -164px;
+        margin: 8px 0 0 0;
+        background: white none repeat scroll 0 0;
+        box-shadow: 0 4px 0 0 white, 0 8px 0 0 white;
+        content: "";
+      }
+    }
+    & nav {
+      display: none;
+      background-color: var(--background-color);
+      padding: 0.5em 1em 1em;
+      overflow: auto;
+      overscroll-behavior: contain;
+      height: calc(100vh - 48px);
+      border-left: 1px solid #ddd;
+    }
+    &.active {
+      opacity: 1;
+      & nav { display: block; }
+    }
+    /* Make the collapsed ToC header render white on gray also when it's a link */
+    & h2 a,
+    & h2 a:is(:link, :focus, :hover),
+    & a.toplink,
+    & a.toplink:hover {
+      color: white;
+      background-color: #444;
+      text-decoration: none;
+    }
+    & a.toplink {
+      margin: 2px 0.5em 0;
+    }
+  }
+}
+
+/* TOC layout for wide screens */
+@media screen and (min-width: 930px) {
+  body {
+    padding-right: 360px;
+    padding-right: calc(min(180px + 20%, 500px));
+  }
+  #toc {
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    right: calc(50vw - 480px);
+    width: 312px;
+    margin: 0;
+    padding: 0;
+    z-index: 1;
+    & h2 {
+      margin: 0;
+      padding: 0.25em 1em 1em 0;
+    }
+    & nav {
+      display: block;
+      height: calc(90vh - 84px);
+      bottom: 0;
+      padding: 0.5em 0 2em;
+      overflow: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+    }
+    & a.toplink {
+      margin: 8px 0.5em 0;
+    }
+  }
+  img { /* future proofing */
+    max-width: 100%;
+    height: auto;
+  }
+}
+
+/* pagination */
+@media print {
+  body {
+    width: 100%;
+  }
+  p {
+    orphans: 3;
+    widows: 3;
+  }
+  #n-copyright-notice {
+    border-bottom: none;
+  }
+  #toc {
+    page-break-before: always;
+    border-top: none;
+    padding-top: 0;
+  }
+  #n-introduction {
+    page-break-before: always;
+  }
+  figure, pre, .vcard {
+    page-break-inside: avoid;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+  }
+  :is(h2, h3, h4, h5, h6)+*, dd {
+    page-break-before: avoid;
+  }
+  pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-size: 10pt;
+  }
+  table {
+    border: 1px solid #ddd;
+  }
+  td {
+    border-top: 1px solid #ddd;
+  }
+}
+
+@page :first {
+  padding-top: 0;
+  @top-left {
+    content: normal;
+    border: none;
+  }
+  @top-center {
+    content: normal;
+    border: none;
+  }
+  @top-right {
+    content: normal;
+    border: none;
+  }
+}
+
+@page {
+  size: A4;
+  margin-bottom: 45mm;
+  padding-top: 20px;
+}
+
+/* Dark mode. */
+@media (prefers-color-scheme: dark) {
+:root {
+  --background-color: #121212;
+  --text-color: #f0f0f0;
+  --title-color: #fff;
+  --link-color: #4da4f0;
+  --highlight-color: #282828;
+  --line-color: #444;
+  --pilcrow-weak: #444;
+  --pilcrow-strong: #666;
+  scrollbar-color: #777 #333;
+}
+}
+
+/* SVG Trick: a prefix match works because only black and white are allowed */
+svg {
+  & :is([stroke="black"], [stroke^="#000"]) {
+    stroke: var(--text-color);
+  }
+  & :is([stroke="white"], [stroke^="#fff"]) {
+    stroke: var(--background-color);
+  }
+  & :is([fill="black"], [fill^="#000"], :not([fill])) {
+    fill: var(--text-color);
+  }
+  & :is([fill="white"], [fill^="#fff"]) {
+    fill: var(--background-color);
+  }
+}
+</style>
+
+</head>
+<body class="xml2rfc">
+<table class="ears">
+<thead><tr>
+<td class="left">Internet-Draft</td>
+<td class="center">AAuth Budget</td>
+<td class="right">July 2026</td>
+</tr></thead>
+<tfoot><tr>
+<td class="left">McGuinness</td>
+<td class="center">Expires 20 January 2027</td>
+<td class="right">[Page]</td>
+</tr></tfoot>
+</table>
+<div id="external-metadata" class="document-information"></div>
+<div id="internal-metadata" class="document-information">
+<dl id="identifiers">
+<dt class="label-workgroup">Workgroup:</dt>
+<dd class="workgroup">Network Working Group</dd>
+<dt class="label-internet-draft">Internet-Draft:</dt>
+<dd class="internet-draft">draft-mcguinness-aauth-budget-latest</dd>
+<dt class="label-published">Published:</dt>
+<dd class="published">
+<time datetime="2026-07-19" class="published">19 July 2026</time>
+    </dd>
+<dt class="label-intended-status">Intended Status:</dt>
+<dd class="intended-status">Standards Track</dd>
+<dt class="label-expires">Expires:</dt>
+<dd class="expires"><time datetime="2027-01-20">20 January 2027</time></dd>
+<dt class="label-authors">Author:</dt>
+<dd class="authors">
+<div class="author">
+      <div class="author-name">K. McGuinness</div>
+<div class="org">Independent</div>
+</div>
+</dd>
+</dl>
+</div>
+<h1 id="title">Budgeted Missions for AAuth</h1>
+<section id="section-abstract">
+      <h2 id="abstract"><a href="#abstract" class="selfRef">Abstract</a></h2>
+<p id="section-abstract-1">AAuth missions express intent and tools, never quantity: nothing a
+person approves says how much an agent may spend. This document
+defines the budget, a hard cap on cumulative monetary spend at one
+resource, proposed by the agent as part of its mission, approved by
+the person at the Person Server, committed under the mission's s256,
+carried in every auth token, and enforced by the resource that meters
+its own service. A budget is a damage cap, not a payment instrument:
+a compromised agent spends at most the remainder. The extension adds
+one mission member, one auth-token claim, one resource metadata
+member, and one error code, and no new protocol.<a href="#section-abstract-1" class="pilcrow">¶</a></p>
+</section>
+<section class="note rfcEditorRemove" id="section-note.1">
+      <h2 id="name-about-this-document">
+<a href="#name-about-this-document" class="section-name selfRef">About This Document</a>
+      </h2>
+<p id="section-note.1-1">This note is to be removed before publishing as an RFC.<a href="#section-note.1-1" class="pilcrow">¶</a></p>
+<p id="section-note.1-2">
+        The latest revision of this draft can be found at <span><a href="https://mcguinness.github.io/draft-mcguinness-aauth-budget/draft-mcguinness-aauth-budget.html">https://mcguinness.github.io/draft-mcguinness-aauth-budget/draft-mcguinness-aauth-budget.html</a></span>.
+        Status information for this document may be found at <span><a href="https://datatracker.ietf.org/doc/draft-mcguinness-aauth-budget/">https://datatracker.ietf.org/doc/draft-mcguinness-aauth-budget/</a></span>.<a href="#section-note.1-2" class="pilcrow">¶</a></p>
+<p id="section-note.1-3">Source for this draft and an issue tracker can be found at
+        <span><a href="https://github.com/mcguinness/draft-mcguinness-aauth-budget">https://github.com/mcguinness/draft-mcguinness-aauth-budget</a></span>.<a href="#section-note.1-3" class="pilcrow">¶</a></p>
+</section>
+<div id="status-of-memo">
+<section id="section-boilerplate.1">
+        <h2 id="name-status-of-this-memo">
+<a href="#name-status-of-this-memo" class="section-name selfRef">Status of This Memo</a>
+        </h2>
+<p id="section-boilerplate.1-1">
+        This Internet-Draft is submitted in full conformance with the
+        provisions of BCP 78 and BCP 79.<a href="#section-boilerplate.1-1" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.1-2">
+        Internet-Drafts are working documents of the Internet Engineering Task
+        Force (IETF). Note that other groups may also distribute working
+        documents as Internet-Drafts. The list of current Internet-Drafts is
+        at <span><a href="https://datatracker.ietf.org/drafts/current/">https://datatracker.ietf.org/drafts/current/</a></span>.<a href="#section-boilerplate.1-2" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.1-3">
+        Internet-Drafts are draft documents valid for a maximum of six months
+        and may be updated, replaced, or obsoleted by other documents at any
+        time. It is inappropriate to use Internet-Drafts as reference
+        material or to cite them other than as "work in progress."<a href="#section-boilerplate.1-3" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.1-4">
+        This Internet-Draft will expire on 20 January 2027.<a href="#section-boilerplate.1-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="copyright">
+<section id="section-boilerplate.2">
+        <h2 id="name-copyright-notice">
+<a href="#name-copyright-notice" class="section-name selfRef">Copyright Notice</a>
+        </h2>
+<p id="section-boilerplate.2-1">
+            Copyright (c) 2026 IETF Trust and the persons identified as the
+            document authors. All rights reserved.<a href="#section-boilerplate.2-1" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.2-2">
+            This document is subject to BCP 78 and the IETF Trust's Legal
+            Provisions Relating to IETF Documents
+            (<span><a href="https://trustee.ietf.org/license-info">https://trustee.ietf.org/license-info</a></span>) in effect on the date of
+            publication of this document. Please review these documents
+            carefully, as they describe your rights and restrictions with
+            respect to this document. Code Components extracted from this
+            document must include Revised BSD License text as described in
+            Section 4.e of the Trust Legal Provisions and are provided without
+            warranty as described in the Revised BSD License.<a href="#section-boilerplate.2-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="toc">
+<section id="section-toc.1">
+        <a href="#" onclick="scroll(0,0)" class="toplink">▲</a><h2 id="name-table-of-contents">
+<a href="#name-table-of-contents" class="section-name selfRef">Table of Contents</a>
+        </h2>
+<nav class="toc"><ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.1">
+            <p id="section-toc.1-1.1.1" class="keepWithNext"><a href="#section-1" class="auto internal xref">1</a>.  <a href="#name-introduction" class="internal xref">Introduction</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.1.2.1">
+                <p id="section-toc.1-1.1.2.1.1" class="keepWithNext"><a href="#section-1.1" class="auto internal xref">1.1</a>.  <a href="#name-applicability" class="internal xref">Applicability</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.2">
+            <p id="section-toc.1-1.2.1" class="keepWithNext"><a href="#section-2" class="auto internal xref">2</a>.  <a href="#name-conventions-and-terminology" class="internal xref">Conventions and Terminology</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3">
+            <p id="section-toc.1-1.3.1"><a href="#section-3" class="auto internal xref">3</a>.  <a href="#name-scope-and-trust-boundary" class="internal xref">Scope and Trust Boundary</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4">
+            <p id="section-toc.1-1.4.1"><a href="#section-4" class="auto internal xref">4</a>.  <a href="#name-the-budgets-mission-member" class="internal xref">The budgets Mission Member</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.1">
+                <p id="section-toc.1-1.4.2.1.1"><a href="#section-4.1" class="auto internal xref">4.1</a>.  <a href="#name-consent" class="internal xref">Consent</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.2">
+                <p id="section-toc.1-1.4.2.2.1"><a href="#section-4.2" class="auto internal xref">4.2</a>.  <a href="#name-immutability-and-top-off" class="internal xref">Immutability and Top-Off</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.3">
+                <p id="section-toc.1-1.4.2.3.1"><a href="#section-4.3" class="auto internal xref">4.3</a>.  <a href="#name-worked-example" class="internal xref">Worked Example</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.5">
+            <p id="section-toc.1-1.5.1"><a href="#section-5" class="auto internal xref">5</a>.  <a href="#name-the-budget-auth-token-claim" class="internal xref">The budget Auth-Token Claim</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.6">
+            <p id="section-toc.1-1.6.1"><a href="#section-6" class="auto internal xref">6</a>.  <a href="#name-metering" class="internal xref">Metering</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.7">
+            <p id="section-toc.1-1.7.1"><a href="#section-7" class="auto internal xref">7</a>.  <a href="#name-budget-state" class="internal xref">Budget State</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8">
+            <p id="section-toc.1-1.8.1"><a href="#section-8" class="auto internal xref">8</a>.  <a href="#name-exhaustion" class="internal xref">Exhaustion</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.9">
+            <p id="section-toc.1-1.9.1"><a href="#section-9" class="auto internal xref">9</a>.  <a href="#name-conformance" class="internal xref">Conformance</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.10">
+            <p id="section-toc.1-1.10.1"><a href="#section-10" class="auto internal xref">10</a>. <a href="#name-security-considerations" class="internal xref">Security Considerations</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.11">
+            <p id="section-toc.1-1.11.1"><a href="#section-11" class="auto internal xref">11</a>. <a href="#name-privacy-considerations" class="internal xref">Privacy Considerations</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.12">
+            <p id="section-toc.1-1.12.1"><a href="#section-12" class="auto internal xref">12</a>. <a href="#name-iana-considerations" class="internal xref">IANA Considerations</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.13">
+            <p id="section-toc.1-1.13.1"><a href="#section-13" class="auto internal xref">13</a>. <a href="#name-references" class="internal xref">References</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.13.2.1">
+                <p id="section-toc.1-1.13.2.1.1"><a href="#section-13.1" class="auto internal xref">13.1</a>.  <a href="#name-normative-references" class="internal xref">Normative References</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.13.2.2">
+                <p id="section-toc.1-1.13.2.2.1"><a href="#section-13.2" class="auto internal xref">13.2</a>.  <a href="#name-informative-references" class="internal xref">Informative References</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.14">
+            <p id="section-toc.1-1.14.1"><a href="#appendix-A" class="auto internal xref"></a><a href="#name-acknowledgments" class="internal xref">Acknowledgments</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.15">
+            <p id="section-toc.1-1.15.1"><a href="#appendix-B" class="auto internal xref"></a><a href="#name-authors-address" class="internal xref">Author's Address</a></p>
+</li>
+        </ul>
+</nav>
+</section>
+</div>
+<div id="introduction">
+<section id="section-1">
+      <h2 id="name-introduction">
+<a href="#section-1" class="section-number selfRef">1. </a><a href="#name-introduction" class="section-name selfRef">Introduction</a>
+      </h2>
+<p id="section-1-1">The AAuth protocol <span>[<a href="#I-D.draft-hardt-oauth-aauth-protocol" class="cite xref">I-D.draft-hardt-oauth-aauth-protocol</a>]</span> gives
+agents their own identity, routes their authorization through a
+Person Server (PS), and binds approved missions to requests by
+reference. Its missions express intent and tools, never quantity.
+AAuth reserves HTTP status 402 for the case where payment is
+additionally required, but defines no authorization object behind it:
+nothing a person approves says how much an agent may spend.<a href="#section-1-1" class="pilcrow">¶</a></p>
+<p id="section-1-2">This document supplies that object. A budget is a hard cap on
+cumulative spend at one resource:<a href="#section-1-2" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-1-3.1">
+          <p id="section-1-3.1.1">proposed by the agent in its mission proposal;<a href="#section-1-3.1.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-1-3.2">
+          <p id="section-1-3.2.1">approved, possibly lowered, by the person at the PS;<a href="#section-1-3.2.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-1-3.3">
+          <p id="section-1-3.3.1">committed under the mission's <code>s256</code>, so the cap is immutable and
+the reference to it is signature-covered on every request;<a href="#section-1-3.3.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-1-3.4">
+          <p id="section-1-3.4.1">carried in every auth token issued under the mission, so the
+resource needs no call to the PS; and<a href="#section-1-3.4.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-1-3.5">
+          <p id="section-1-3.5.1">enforced by the resource, which meters its own service and refuses
+further spend once the cap is reached.<a href="#section-1-3.5.1" class="pilcrow">¶</a></p>
+</li>
+      </ul>
+<p id="section-1-4">The budget is a damage cap, not a payment instrument. AAuth's
+substrate already key-binds every token and signs every request; the
+budget bounds the remaining case, agent or key compromise, at the
+amount the person consented to.<a href="#section-1-4" class="pilcrow">¶</a></p>
+<p id="section-1-5">The extension adds four names and no new protocol: one mission member
+(<code>budgets</code>), one auth-token claim (<code>budget</code>), one resource metadata
+member and endpoint (<code>budget_endpoint</code>), and one error code
+(<code>budget_exhausted</code>).<a href="#section-1-5" class="pilcrow">¶</a></p>
+<p id="section-1-6">Profiles pin what this document deliberately leaves open: the pricing
+unit a resource publishes, the carriage of per-response debit
+reporting, the error body of its API surface, and the payment
+relationship behind the balance. TPX-A
+(<span>[<a href="#I-D.draft-mcguinness-aauth-budget-tpx" class="cite xref">I-D.draft-mcguinness-aauth-budget-tpx</a>]</span>), the AAuth profile of the
+Token Pony Express <span>[<a href="#TPX" class="cite xref">TPX</a>]</span>, is the motivating profile: metered LLM
+inference grants, with credits as the published unit and an
+OpenAI-compatible API surface.<a href="#section-1-6" class="pilcrow">¶</a></p>
+<div id="applicability">
+<section id="section-1.1">
+        <h3 id="name-applicability">
+<a href="#section-1.1" class="section-number selfRef">1.1. </a><a href="#name-applicability" class="section-name selfRef">Applicability</a>
+        </h3>
+<p id="section-1.1-1">This document tracks draft-hardt-oauth-aauth-protocol-08, an
+individual Internet-Draft; a change to AAuth's mission or token
+surfaces revises this document. It requires a deployment that
+operates a Person Server and uses AAuth missions.<a href="#section-1.1-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="conventions-and-terminology">
+<section id="section-2">
+      <h2 id="name-conventions-and-terminology">
+<a href="#section-2" class="section-number selfRef">2. </a><a href="#name-conventions-and-terminology" class="section-name selfRef">Conventions and Terminology</a>
+      </h2>
+<p id="section-2-1">The key words "<span class="bcp14">MUST</span>", "<span class="bcp14">MUST NOT</span>", "<span class="bcp14">REQUIRED</span>", "<span class="bcp14">SHALL</span>", "<span class="bcp14">SHALL NOT</span>", "<span class="bcp14">SHOULD</span>", "<span class="bcp14">SHOULD NOT</span>", "<span class="bcp14">RECOMMENDED</span>", "<span class="bcp14">NOT RECOMMENDED</span>",
+"<span class="bcp14">MAY</span>", and "<span class="bcp14">OPTIONAL</span>" in this document are to be interpreted as
+described in BCP 14 <span>[<a href="#RFC2119" class="cite xref">RFC2119</a>]</span> <span>[<a href="#RFC8174" class="cite xref">RFC8174</a>]</span> when, and only when, they
+appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶</a></p>
+<p id="section-2-2">This document uses Person Server (PS), Access Server, agent, agent
+token, resource token, auth token, mission blob, mission log, <code>s256</code>,
+and the <code>AAuth-Mission</code> header as defined by
+<span>[<a href="#I-D.draft-hardt-oauth-aauth-protocol" class="cite xref">I-D.draft-hardt-oauth-aauth-protocol</a>]</span>. It additionally uses:<a href="#section-2-2" class="pilcrow">¶</a></p>
+<span class="break"></span><dl class="dlParallel" id="section-2-3">
+        <dt id="section-2-3.1">Budget:</dt>
+        <dd style="margin-left: 1.5em" id="section-2-3.2">
+          <p id="section-2-3.2.1">A hard cap on cumulative monetary spend at one resource under one
+mission, as this document defines it.<a href="#section-2-3.2.1" class="pilcrow">¶</a></p>
+</dd>
+        <dd class="break"></dd>
+<dt id="section-2-3.3">Payee:</dt>
+        <dd style="margin-left: 1.5em" id="section-2-3.4">
+          <p id="section-2-3.4.1">The resource being paid: the party that prices its own service,
+meters usage, and enforces the budget.<a href="#section-2-3.4.1" class="pilcrow">¶</a></p>
+</dd>
+      <dd class="break"></dd>
+</dl>
+<p id="section-2-4">All JSON shown in this document is non-normative and illustrative;
+the member definitions in the surrounding text are authoritative.<a href="#section-2-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="scope">
+<section id="section-3">
+      <h2 id="name-scope-and-trust-boundary">
+<a href="#section-3" class="section-number selfRef">3. </a><a href="#name-scope-and-trust-boundary" class="section-name selfRef">Scope and Trust Boundary</a>
+      </h2>
+<p id="section-3-1">This is a payee-enforced damage cap, not a governance meter. The
+meter lives at the resource because only the resource knows usage,
+and the resource prices its own service. That self-reported meter is
+sound precisely because the budget bounds what that one resource may
+debit from a relationship the person already holds with it.<a href="#section-3-1" class="pilcrow">¶</a></p>
+<p id="section-3-2">Consequently:<a href="#section-3-2" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-3-3.1">
+          <p id="section-3-3.1.1">A budget bounds spend at the named resource. It does not bound
+agent behavior across resources.<a href="#section-3-3.1.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-3-3.2">
+          <p id="section-3-3.2.1">Cross-resource aggregate spend, call-count caps, and duration caps
+are governance-layer consumption bounds with distributed-counting
+machinery of their own, and are out of scope. Mission governance
+profiles for AAuth Person Servers address that layer
+(<span>[<a href="#I-D.draft-mcguinness-mission-aauth" class="cite xref">I-D.draft-mcguinness-mission-aauth</a>]</span>,
+<span>[<a href="#I-D.draft-mcguinness-mission-metering" class="cite xref">I-D.draft-mcguinness-mission-metering</a>]</span>); this extension
+requires none of them and composes with them unchanged, since
+<code>budgets</code> is an ordinary blob member committed under <code>s256</code>.<a href="#section-3-3.2.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-3-3.3">
+          <p id="section-3-3.3.1">Non-monetary quantity caps are out of scope. Budgets are money:
+the one unit every person can consent to.<a href="#section-3-3.3.1" class="pilcrow">¶</a></p>
+</li>
+      </ul>
+</section>
+</div>
+<div id="budgets">
+<section id="section-4">
+      <h2 id="name-the-budgets-mission-member">
+<a href="#section-4" class="section-number selfRef">4. </a><a href="#name-the-budgets-mission-member" class="section-name selfRef">The budgets Mission Member</a>
+      </h2>
+<p id="section-4-1">An agent proposes budgets in its mission proposal; the approved
+mission blob carries the granted values. Both use one member:<a href="#section-4-1" class="pilcrow">¶</a></p>
+<div class="lang-json sourcecode" id="section-4-2">
+<pre>
+{
+  "budgets": [
+    { "resource": "https://api.search.example",
+      "amount": "2.00",
+      "currency": "USD" }
+  ]
+}
+</pre><a href="#section-4-2" class="pilcrow">¶</a>
+</div>
+<p id="section-4-3">Each entry has the members:<a href="#section-4-3" class="pilcrow">¶</a></p>
+<span class="break"></span><dl class="dlParallel" id="section-4-4">
+        <dt id="section-4-4.1">
+<code>resource</code>:</dt>
+        <dd style="margin-left: 1.5em" id="section-4-4.2">
+          <p id="section-4-4.2.1"><span class="bcp14">REQUIRED</span>. The resource identifier the cap applies to, an absolute
+HTTPS URI. At most one entry per resource.<a href="#section-4-4.2.1" class="pilcrow">¶</a></p>
+</dd>
+        <dd class="break"></dd>
+<dt id="section-4-4.3">
+<code>amount</code>:</dt>
+        <dd style="margin-left: 1.5em" id="section-4-4.4">
+          <p id="section-4-4.4.1"><span class="bcp14">REQUIRED</span>. A string. A positive decimal number: the maximum
+cumulative spend.<a href="#section-4-4.4.1" class="pilcrow">¶</a></p>
+</dd>
+        <dd class="break"></dd>
+<dt id="section-4-4.5">
+<code>currency</code>:</dt>
+        <dd style="margin-left: 1.5em" id="section-4-4.6">
+          <p id="section-4-4.6.1"><span class="bcp14">REQUIRED</span>. A string. An ISO 4217 currency code.<a href="#section-4-4.6.1" class="pilcrow">¶</a></p>
+</dd>
+      <dd class="break"></dd>
+</dl>
+<p id="section-4-5">A profile <span class="bcp14">MAY</span> add members to an entry. Consumers fail closed: a
+Person Server <span class="bcp14">MUST</span> reject a proposal whose <code>budgets</code> entries carry
+members it does not recognize or values it cannot render for
+consent, and a resource <span class="bcp14">MUST</span> refuse budgeted access it cannot fully
+enforce (<a href="#claim" class="auto internal xref">Section 5</a>).<a href="#section-4-5" class="pilcrow">¶</a></p>
+<div id="consent">
+<section id="section-4.1">
+        <h3 id="name-consent">
+<a href="#section-4.1" class="section-number selfRef">4.1. </a><a href="#name-consent" class="section-name selfRef">Consent</a>
+        </h3>
+<p id="section-4.1-1">The PS authenticates the person and renders each proposed entry: the
+resource, and the amount with its currency. The person or the PS <span class="bcp14">MAY</span>
+grant a lower amount than proposed; the granted amount <span class="bcp14">MUST NOT</span>
+exceed the proposed amount. The blob's <code>budgets</code> member carries the
+granted values, and the agent <span class="bcp14">MUST</span> read them from the blob, not from
+its proposal.<a href="#section-4.1-1" class="pilcrow">¶</a></p>
+<p id="section-4.1-2">The mission description is the agent's narrative, not the grant: the
+PS <span class="bcp14">MUST</span> render it sanitized, per AAuth, and visually distinct from
+the amounts it asks the person to approve.<a href="#section-4.1-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="immutability">
+<section id="section-4.2">
+        <h3 id="name-immutability-and-top-off">
+<a href="#section-4.2" class="section-number selfRef">4.2. </a><a href="#name-immutability-and-top-off" class="section-name selfRef">Immutability and Top-Off</a>
+        </h3>
+<p id="section-4.2-1">The blob is immutable under <code>s256</code>, so a budget cannot be raised in
+place. A top-off is a new mission proposal; the person decides.
+AAuth's permission endpoint is not used for budget changes, because
+the cap is committed under <code>s256</code>. When a budget is spent or the
+task is done, the agent <span class="bcp14">SHOULD</span> propose completion with a summary
+that includes total spend.<a href="#section-4.2-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="example">
+<section id="section-4.3">
+        <h3 id="name-worked-example">
+<a href="#section-4.3" class="section-number selfRef">4.3. </a><a href="#name-worked-example" class="section-name selfRef">Worked Example</a>
+        </h3>
+<p id="section-4.3-1">An approved mission blob for a digest agent with a $2.00 cap:<a href="#section-4.3-1" class="pilcrow">¶</a></p>
+<div class="lang-json sourcecode" id="section-4.3-2">
+<pre>
+{
+  "approver": "https://ps.example",
+  "agent": "aauth:scout@agents.example",
+  "approved_at": "2026-07-18T09:05:42Z",
+  "description":
+    "Compile a daily digest of Doppler launch coverage this week.",
+  "approved_tools": [
+    { "name": "search.query",
+      "description": "Web search at api.search.example" }
+  ],
+  "capabilities": ["interaction"],
+  "budgets": [
+    { "resource": "https://api.search.example",
+      "amount": "2.00",
+      "currency": "USD" }
+  ]
+}
+</pre><a href="#section-4.3-2" class="pilcrow">¶</a>
+</div>
+<p id="section-4.3-3">Per AAuth, <code>s256</code> is computed over the exact response body bytes;
+for the compact (whitespace-free) serialization of this blob, in the
+member order shown, the mission reference is:<a href="#section-4.3-3" class="pilcrow">¶</a></p>
+<div class="lang-text sourcecode" id="section-4.3-4">
+<pre>
+AAuth-Mission: approver="https://ps.example";
+    s256="q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+</pre><a href="#section-4.3-4" class="pilcrow">¶</a>
+</div>
+<p id="section-4.3-5">The reference is covered by the HTTP Message Signature <span>[<a href="#RFC9421" class="cite xref">RFC9421</a>]</span>
+on every request that carries it, per AAuth, so the cap the person
+approved is bound to every call made under it.<a href="#section-4.3-5" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="claim">
+<section id="section-5">
+      <h2 id="name-the-budget-auth-token-claim">
+<a href="#section-5" class="section-number selfRef">5. </a><a href="#name-the-budget-auth-token-claim" class="section-name selfRef">The budget Auth-Token Claim</a>
+      </h2>
+<p id="section-5-1">An auth token issued under a mission whose <code>budgets</code> member has an
+entry matching the token's audience <span class="bcp14">MUST</span> carry that granted entry,
+verbatim, in a <code>budget</code> claim, and only that entry:<a href="#section-5-1" class="pilcrow">¶</a></p>
+<div class="lang-json sourcecode" id="section-5-2">
+<pre>
+{
+  "iss": "https://ps.example",
+  "dwk": "aauth-person.json",
+  "aud": "https://api.search.example",
+  "sub": "p-2c9wqe",
+  "agent": "aauth:scout@agents.example",
+  "cnf": { "jwk": { "kty": "OKP", "crv": "Ed25519", "x": "..." } },
+  "jti": "at_5Xr8kQ2mVn3pY7wZ1sB4",
+  "iat": 1784386800,
+  "exp": 1784390400,
+  "mission": {
+    "approver": "https://ps.example",
+    "s256": "q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+  },
+  "budget": {
+    "resource": "https://api.search.example",
+    "amount": "2.00",
+    "currency": "USD"
+  }
+}
+</pre><a href="#section-5-2" class="pilcrow">¶</a>
+</div>
+<ul class="normal">
+<li class="normal" id="section-5-3.1">
+          <p id="section-5-3.1.1">The entry's <code>resource</code> <span class="bcp14">MUST</span> equal the token's <code>aud</code>.<a href="#section-5-3.1.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-5-3.2">
+          <p id="section-5-3.2.1">The <code>mission</code> claim is AAuth's own. The resource never
+dereferences the blob, so the cap travels in the token and the
+resource needs no call to the PS.<a href="#section-5-3.2.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-5-3.3">
+          <p id="section-5-3.3.1">Before issuing, the PS <span class="bcp14">MUST</span> verify that the mission is active and
+that the resource token's issuer matches a granted entry's
+<code>resource</code>. In AAuth's federated mode the PS conveys the granted
+entry in its federation request, and the Access Server <span class="bcp14">MUST</span> copy
+it into the auth token it mints.<a href="#section-5-3.3.1" class="pilcrow">¶</a></p>
+</li>
+      </ul>
+<p id="section-5-4">Auth tokens remain proof-of-possession and short-lived per AAuth, so
+every renewal repasses the PS gate: a revoked mission stops new
+spend authority within one auth-token lifetime.<a href="#section-5-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="metering">
+<section id="section-6">
+      <h2 id="name-metering">
+<a href="#section-6" class="section-number selfRef">6. </a><a href="#name-metering" class="section-name selfRef">Metering</a>
+      </h2>
+<p id="section-6-1">The resource is the meter. It <span class="bcp14">MUST</span>:<a href="#section-6-1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-6-2.1">
+          <p id="section-6-2.1.1">key the meter by the mission reference (<code>approver</code>, <code>s256</code>): the
+cap is cumulative across all auth tokens and renewals under the
+mission, not per token;<a href="#section-6-2.1.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-6-2.2">
+          <p id="section-6-2.2.1">debit atomically with serving each request, in the committed
+currency (a resource that prices in its own units converts at its
+published relationship, a profile concern); and<a href="#section-6-2.2.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-6-2.3">
+          <p id="section-6-2.3.1">refuse further budgeted requests once cumulative debits reach the
+granted amount.<a href="#section-6-2.3.1" class="pilcrow">¶</a></p>
+</li>
+      </ul>
+<p id="section-6-3">A request whose worst-case cost cannot fit the remainder <span class="bcp14">MAY</span> be
+refused up front. Exact concurrency control (reserve and commit) is
+out of scope: a resource that admits requests concurrently accepts a
+race bounded by the cost of requests in flight, or refuses up front.<a href="#section-6-3" class="pilcrow">¶</a></p>
+<p id="section-6-4">A resource <span class="bcp14">SHOULD</span> report each debit in its response; the carriage is
+API surface, pinned by profiles.<a href="#section-6-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="state">
+<section id="section-7">
+      <h2 id="name-budget-state">
+<a href="#section-7" class="section-number selfRef">7. </a><a href="#name-budget-state" class="section-name selfRef">Budget State</a>
+      </h2>
+<p id="section-7-1">A resource that enforces budgets <span class="bcp14">MUST</span> publish a <code>budget_endpoint</code>
+member in its AAuth resource metadata document. The endpoint,
+authenticated like any resource request (signed, with the auth token
+and the mission reference), returns the state of the budget named by
+the presented mission reference:<a href="#section-7-1" class="pilcrow">¶</a></p>
+<div class="lang-json sourcecode" id="section-7-2">
+<pre>
+{
+  "active": true,
+  "budget": { "amount": "2.00", "currency": "USD" },
+  "spent": { "amount": "0.31", "currency": "USD" }
+}
+</pre><a href="#section-7-2" class="pilcrow">¶</a>
+</div>
+<span class="break"></span><dl class="dlParallel" id="section-7-3">
+        <dt id="section-7-3.1">
+<code>active</code>:</dt>
+        <dd style="margin-left: 1.5em" id="section-7-3.2">
+          <p id="section-7-3.2.1"><span class="bcp14">REQUIRED</span>. A boolean. Whether the resource still serves budgeted
+requests under this mission.<a href="#section-7-3.2.1" class="pilcrow">¶</a></p>
+</dd>
+        <dd class="break"></dd>
+<dt id="section-7-3.3">
+<code>budget</code>:</dt>
+        <dd style="margin-left: 1.5em" id="section-7-3.4">
+          <p id="section-7-3.4.1"><span class="bcp14">REQUIRED</span>. The granted cap, as committed: an object with <code>amount</code>
+and <code>currency</code> as defined in <a href="#budgets" class="auto internal xref">Section 4</a>.<a href="#section-7-3.4.1" class="pilcrow">¶</a></p>
+</dd>
+        <dd class="break"></dd>
+<dt id="section-7-3.5">
+<code>spent</code>:</dt>
+        <dd style="margin-left: 1.5em" id="section-7-3.6">
+          <p id="section-7-3.6.1"><span class="bcp14">REQUIRED</span>. Cumulative debits to date, in the same shape. Remaining
+budget is the difference.<a href="#section-7-3.6.1" class="pilcrow">¶</a></p>
+</dd>
+      <dd class="break"></dd>
+</dl>
+<p id="section-7-4">The response <span class="bcp14">MUST NOT</span> include <code>sub</code> or any other identity claim.
+Agents <span class="bcp14">SHOULD</span> read it before starting work whose cost is significant
+relative to the remainder.<a href="#section-7-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="exhaustion">
+<section id="section-8">
+      <h2 id="name-exhaustion">
+<a href="#section-8" class="section-number selfRef">8. </a><a href="#name-exhaustion" class="section-name selfRef">Exhaustion</a>
+      </h2>
+<p id="section-8-1">When the cap is reached, the resource refuses with HTTP status 402
+and the error code <code>budget_exhausted</code>:<a href="#section-8-1" class="pilcrow">¶</a></p>
+<div class="lang-json sourcecode" id="section-8-2">
+<pre>
+{
+  "error": "budget_exhausted",
+  "error_description":
+    "The mission's budget at this resource is spent."
+}
+</pre><a href="#section-8-2" class="pilcrow">¶</a>
+</div>
+<p id="section-8-3">The body shown is AAuth's flat error shape; a profile <span class="bcp14">MAY</span> pin its
+API's native error carriage instead. The code, and the meaning "the
+committed cap is spent, a new mission is the recovery", are this
+document's.<a href="#section-8-3" class="pilcrow">¶</a></p>
+<p id="section-8-4">Payment failures outside the cap (an empty prepaid balance, a failed
+settlement) belong to the resource's payment relationship with the
+person. They are signaled with status 402 per AAuth and named by the
+profile, not by this document.<a href="#section-8-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="conformance">
+<section id="section-9">
+      <h2 id="name-conformance">
+<a href="#section-9" class="section-number selfRef">9. </a><a href="#name-conformance" class="section-name selfRef">Conformance</a>
+      </h2>
+<p id="section-9-1">An implementation conforms in one of three roles.<a href="#section-9-1" class="pilcrow">¶</a></p>
+<p id="section-9-2">A <strong>budgeted resource</strong>:<a href="#section-9-2" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-9-3.1">
+          <p id="section-9-3.1.1">publishes <code>budget_endpoint</code> in its resource metadata and serves it
+per <a href="#state" class="auto internal xref">Section 7</a>;<a href="#section-9-3.1.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-9-3.2">
+          <p id="section-9-3.2.1">rejects budgeted access on tokens lacking the <code>mission</code> or
+<code>budget</code> claims, or carrying values it cannot enforce, failing
+closed (<a href="#claim" class="auto internal xref">Section 5</a>);<a href="#section-9-3.2.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-9-3.3">
+          <p id="section-9-3.3.1">meters per <a href="#metering" class="auto internal xref">Section 6</a> and signals exhaustion per <a href="#exhaustion" class="auto internal xref">Section 8</a>;
+and<a href="#section-9-3.3.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-9-3.4">
+          <p id="section-9-3.4.1">keeps identity out of budget-state responses.<a href="#section-9-3.4.1" class="pilcrow">¶</a></p>
+</li>
+      </ul>
+<p id="section-9-4">A <strong>budgeted agent</strong>:<a href="#section-9-4" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-9-5.1">
+          <p id="section-9-5.1.1">proposes caps via <code>budgets</code> and reads the granted values from the
+approved blob (<a href="#consent" class="auto internal xref">Section 4.1</a>);<a href="#section-9-5.1.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-9-5.2">
+          <p id="section-9-5.2.1">carries the mission reference on every request under the grant,
+signature-covered, per AAuth; and<a href="#section-9-5.2.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-9-5.3">
+          <p id="section-9-5.3.1">stops spending against an exhausted budget: recovery is a new
+mission, decided by the person (<a href="#immutability" class="auto internal xref">Section 4.2</a>).<a href="#section-9-5.3.1" class="pilcrow">¶</a></p>
+</li>
+      </ul>
+<p id="section-9-6">A <strong>Person Server</strong>:<a href="#section-9-6" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-9-7.1">
+          <p id="section-9-7.1.1">renders consent per <a href="#consent" class="auto internal xref">Section 4.1</a> and supports granting lower
+amounts;<a href="#section-9-7.1.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-9-7.2">
+          <p id="section-9-7.2.1">returns the granted entries in the approved blob;<a href="#section-9-7.2.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-9-7.3">
+          <p id="section-9-7.3.1">gates issuance on mission state and on the resource matching a
+granted entry (<a href="#claim" class="auto internal xref">Section 5</a>); and<a href="#section-9-7.3.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-9-7.4">
+          <p id="section-9-7.4.1">carries the <code>budget</code> claim in auth tokens it issues, or conveys
+the granted entry in federation.<a href="#section-9-7.4.1" class="pilcrow">¶</a></p>
+</li>
+      </ul>
+</section>
+</div>
+<div id="security-considerations">
+<section id="section-10">
+      <h2 id="name-security-considerations">
+<a href="#section-10" class="section-number selfRef">10. </a><a href="#name-security-considerations" class="section-name selfRef">Security Considerations</a>
+      </h2>
+<p id="section-10-1"><strong>The cap is the backstop, not the lock.</strong> AAuth's substrate already
+key-binds every token and signs every request; a leaked auth token
+spends nothing without the agent's key. The budget bounds the
+remaining case, agent or key compromise, at the amount the person
+consented to.<a href="#section-10-1" class="pilcrow">¶</a></p>
+<p id="section-10-2"><strong>The meter is the payee.</strong> A resource can misreport its own meter
+exactly as any merchant can misprice. The budget-state endpoint and
+per-response debit reporting keep the meter auditable by the paying
+person, and the PS's mission log records every token request under
+the grant for reconciliation. This document does not attempt to make
+the payee's meter trustless.<a href="#section-10-2" class="pilcrow">¶</a></p>
+<p id="section-10-3"><strong>Consent is the ceiling.</strong> The granted amount never exceeds the
+proposed amount, the blob is immutable under <code>s256</code>, and the
+reference is signature-covered per request: what the person approved
+is what every call is bound to, byte-exact. A PS that cannot render
+a proposed entry rejects the proposal rather than approving what the
+person could not see (<a href="#budgets" class="auto internal xref">Section 4</a>).<a href="#section-10-3" class="pilcrow">¶</a></p>
+<p id="section-10-4"><strong>Issuance is the gate.</strong> Every auth token under a mission passes
+the PS, and tokens are short-lived per AAuth, so revocation latency
+is bounded by the auth-token lifetime even where a resource retains
+no revocation surface.<a href="#section-10-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="privacy-considerations">
+<section id="section-11">
+      <h2 id="name-privacy-considerations">
+<a href="#section-11" class="section-number selfRef">11. </a><a href="#name-privacy-considerations" class="section-name selfRef">Privacy Considerations</a>
+      </h2>
+<p id="section-11-1"><strong>Each resource sees only its own entry.</strong> The <code>budget</code> claim
+carries the single entry matching the token's audience, so a
+resource never learns the person's caps at other resources. The full
+<code>budgets</code> member travels only in the blob, which stays with the
+agent and the PS per AAuth.<a href="#section-11-1" class="pilcrow">¶</a></p>
+<p id="section-11-2"><strong>Budget state carries no identity.</strong> The budget-state response is
+keyed by the mission reference and returns amounts only. What the
+resource learns, spend per mission per agent, is inherent to
+metering; the mission reference correlation it rides is AAuth's own,
+unchanged by this document.<a href="#section-11-2" class="pilcrow">¶</a></p>
+<p id="section-11-3"><strong>Amounts are sensitive.</strong> A granted cap reveals what the person was
+willing to spend. It is disclosed to exactly the parties that must
+enforce or audit it: the PS, the agent, and the named resource.<a href="#section-11-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="iana">
+<section id="section-12">
+      <h2 id="name-iana-considerations">
+<a href="#section-12" class="section-number selfRef">12. </a><a href="#name-iana-considerations" class="section-name selfRef">IANA Considerations</a>
+      </h2>
+<p id="section-12-1">This document has no IANA actions. The members it defines ride
+inside structures whose extensibility their defining specification
+states: <code>budgets</code> in the PS-produced mission blob, <code>budget</code> in the
+auth token, and <code>budget_endpoint</code> in the resource metadata document,
+whose unrecognized members AAuth consumers ignore. Should AAuth
+establish registries for those structures, the members this document
+defines would be registered there.<a href="#section-12-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="sec-combined-references">
+<section id="section-13">
+      <h2 id="name-references">
+<a href="#section-13" class="section-number selfRef">13. </a><a href="#name-references" class="section-name selfRef">References</a>
+      </h2>
+<div id="sec-normative-references">
+<section id="section-13.1">
+        <h3 id="name-normative-references">
+<a href="#section-13.1" class="section-number selfRef">13.1. </a><a href="#name-normative-references" class="section-name selfRef">Normative References</a>
+        </h3>
+<dl class="references">
+<dt id="I-D.draft-hardt-oauth-aauth-protocol">[I-D.draft-hardt-oauth-aauth-protocol]</dt>
+        <dd>
+<span class="refAuthor">Hardt, D.</span>, <span class="refTitle">"AAuth Protocol"</span>, <span class="refContent">Work in Progress</span>, <span class="seriesInfo">Internet-Draft, draft-hardt-oauth-aauth-protocol-08</span>, <time datetime="2026" class="refDate">2026</time>, <span>&lt;<a href="https://datatracker.ietf.org/doc/html/draft-hardt-oauth-aauth-protocol-08">https://datatracker.ietf.org/doc/html/draft-hardt-oauth-aauth-protocol-08</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="RFC2119">[RFC2119]</dt>
+        <dd>
+<span class="refAuthor">Bradner, S.</span>, <span class="refTitle">"Key words for use in RFCs to Indicate Requirement Levels"</span>, <span class="seriesInfo">BCP 14</span>, <span class="seriesInfo">RFC 2119</span>, <span class="seriesInfo">DOI 10.17487/RFC2119</span>, <time datetime="1997-03" class="refDate">March 1997</time>, <span>&lt;<a href="https://www.rfc-editor.org/rfc/rfc2119">https://www.rfc-editor.org/rfc/rfc2119</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="RFC8174">[RFC8174]</dt>
+      <dd>
+<span class="refAuthor">Leiba, B.</span>, <span class="refTitle">"Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words"</span>, <span class="seriesInfo">BCP 14</span>, <span class="seriesInfo">RFC 8174</span>, <span class="seriesInfo">DOI 10.17487/RFC8174</span>, <time datetime="2017-05" class="refDate">May 2017</time>, <span>&lt;<a href="https://www.rfc-editor.org/rfc/rfc8174">https://www.rfc-editor.org/rfc/rfc8174</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+</dl>
+</section>
+</div>
+<div id="sec-informative-references">
+<section id="section-13.2">
+        <h3 id="name-informative-references">
+<a href="#section-13.2" class="section-number selfRef">13.2. </a><a href="#name-informative-references" class="section-name selfRef">Informative References</a>
+        </h3>
+<dl class="references">
+<dt id="I-D.draft-mcguinness-aauth-budget-tpx">[I-D.draft-mcguinness-aauth-budget-tpx]</dt>
+        <dd>
+<span class="refAuthor">McGuinness, K.</span>, <span class="refTitle">"TPX-A: An AAuth Profile for Metered LLM Inference Grants"</span>, <time datetime="2026" class="refDate">2026</time>, <span>&lt;<a href="https://mcguinness.github.io/draft-mcguinness-aauth-budget/draft-mcguinness-aauth-budget-tpx.html">https://mcguinness.github.io/draft-mcguinness-aauth-budget/draft-mcguinness-aauth-budget-tpx.html</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="I-D.draft-mcguinness-mission-aauth">[I-D.draft-mcguinness-mission-aauth]</dt>
+        <dd>
+<span class="refAuthor">McGuinness, K.</span>, <span class="refTitle">"Mission-Bound Authorization for AAuth"</span>, <time datetime="2026" class="refDate">2026</time>, <span>&lt;<a href="https://mcguinness.github.io/mission-bound-authorization/draft-mcguinness-mission-aauth.html">https://mcguinness.github.io/mission-bound-authorization/draft-mcguinness-mission-aauth.html</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="I-D.draft-mcguinness-mission-metering">[I-D.draft-mcguinness-mission-metering]</dt>
+        <dd>
+<span class="refAuthor">McGuinness, K.</span>, <span class="refTitle">"Mission Consumption Metering"</span>, <time datetime="2026" class="refDate">2026</time>, <span>&lt;<a href="https://mcguinness.github.io/mission-bound-authorization/draft-mcguinness-mission-metering.html">https://mcguinness.github.io/mission-bound-authorization/draft-mcguinness-mission-metering.html</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="RFC9421">[RFC9421]</dt>
+        <dd>
+<span class="refAuthor">Backman, A., Ed.</span>, <span class="refAuthor">Richer, J., Ed.</span>, and <span class="refAuthor">M. Sporny</span>, <span class="refTitle">"HTTP Message Signatures"</span>, <span class="seriesInfo">RFC 9421</span>, <span class="seriesInfo">DOI 10.17487/RFC9421</span>, <time datetime="2024-02" class="refDate">February 2024</time>, <span>&lt;<a href="https://www.rfc-editor.org/rfc/rfc9421">https://www.rfc-editor.org/rfc/rfc9421</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="TPX">[TPX]</dt>
+      <dd>
+<span class="refTitle">"TPX v0.2: An OAuth 2.0 profile for metered LLM inference grants"</span>, <time datetime="2026" class="refDate">2026</time>, <span>&lt;<a href="https://tokenpony.dev/spec/">https://tokenpony.dev/spec/</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+</dl>
+</section>
+</div>
+</section>
+</div>
+<div id="acknowledgments">
+<section id="appendix-A">
+      <h2 id="name-acknowledgments">
+<a href="#name-acknowledgments" class="section-name selfRef">Acknowledgments</a>
+      </h2>
+<p id="appendix-A-1">This extension generalizes the budget mechanism of the Token Pony
+Express <span>[<a href="#TPX" class="cite xref">TPX</a>]</span>, which demonstrated the budget-as-grant pattern as an
+OAuth 2.0 profile, onto AAuth's mission substrate. TPX-A
+(<span>[<a href="#I-D.draft-mcguinness-aauth-budget-tpx" class="cite xref">I-D.draft-mcguinness-aauth-budget-tpx</a>]</span>) profiles this document
+back onto that use case.<a href="#appendix-A-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="authors-addresses">
+<section id="appendix-B">
+      <h2 id="name-authors-address">
+<a href="#name-authors-address" class="section-name selfRef">Author's Address</a>
+      </h2>
+<address class="vcard">
+        <div dir="auto" class="left"><span class="fn nameRole">Karl McGuinness</span></div>
+<div dir="auto" class="left"><span class="org">Independent</span></div>
+<div class="email">
+<span>Email:</span>
+<a href="mailto:public@karlmcguinness.com" class="email">public@karlmcguinness.com</a>
+</div>
+</address>
+</section>
+</div>
+<script>const toc = document.getElementById("toc");
+toc.querySelector("h2").addEventListener("click", e => {
+  toc.classList.toggle("active");
+});
+toc.querySelector("nav").addEventListener("click", e => {
+  toc.classList.remove("active");
+});
+</script>
+</body>
+</html>
