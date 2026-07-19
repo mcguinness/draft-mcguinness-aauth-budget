@@ -1,13 +1,52 @@
-# Internet-Draft Template Repository
+<!-- regenerate: off (edited by hand; set to on to let i-d-template regenerate) -->
 
-Use this repository as a template if you want to start working on
-[IETF](https://www.ietf.org/) documents. [Click here to create a new repository using the
-template](https://github.com/martinthomson/internet-draft-template/generate).
-Make sure to check "Include all branches", or you will need to enable GitHub Pages manually.
+# Budgeted Missions for AAuth
 
-[Read the
-instructions](https://github.com/martinthomson/i-d-template/blob/main/doc/TEMPLATE.md)
-for more information.
+This is the working area for the individual Internet-Draft, "Budgeted
+Missions for AAuth" (AAuth-Budget).
 
-Once you have created your own repository, start work by
-[renaming the `draft-todo-yourname-protocol.md` file](../../edit/main/draft-todo-yourname-protocol.md).
+AAuth missions express intent and tools, never quantity. This
+extension defines the budget: a hard cap on cumulative monetary spend
+at one resource, proposed by the agent, approved by the person at the
+Person Server, committed under the mission's `s256`, carried in every
+auth token, and enforced by the resource that meters its own service.
+A budget is a damage cap, not a payment instrument: a compromised
+agent spends at most the remainder.
+
+The extension adds four names and no new protocol: one mission member
+(`budgets`), one auth-token claim (`budget`), one resource metadata
+member and endpoint (`budget_endpoint`), and one error code
+(`budget_exhausted`). It deliberately leaves the pricing unit, the
+debit-reporting carriage, the API error shape, and the payment model
+to profiles.
+
+* [Editor's Copy](https://mcguinness.github.io/draft-mcguinness-aauth-budget/#go.draft-mcguinness-aauth-budget.html)
+* [Datatracker Page](https://datatracker.ietf.org/doc/draft-mcguinness-aauth-budget)
+* [Individual Draft](https://datatracker.ietf.org/doc/html/draft-mcguinness-aauth-budget)
+
+## Profiles
+
+"TPX-A: An AAuth Profile for Metered LLM Inference Grants"
+(draft-mcguinness-aauth-budget-tpx) is the AAuth-native sibling of
+[TPX v0.2](https://tokenpony.dev/spec/). It pins the credit unit, the
+`models` restriction, the OpenAI-compatible API surface, and the
+balance model onto this extension.
+
+* [Editor's Copy](https://mcguinness.github.io/draft-mcguinness-aauth-budget/#go.draft-mcguinness-aauth-budget-tpx.html)
+* [Datatracker Page](https://datatracker.ietf.org/doc/draft-mcguinness-aauth-budget-tpx)
+* [Individual Draft](https://datatracker.ietf.org/doc/html/draft-mcguinness-aauth-budget-tpx)
+
+## Building the Draft
+
+Formatted text and HTML versions of the draft can be built using `make`:
+
+```sh
+$ make
+```
+
+This requires that you have the necessary software installed. See
+[the instructions](https://github.com/martinthomson/i-d-template/blob/main/doc/SETUP.md).
+
+## Contributing
+
+Contributions are welcome via GitHub issues and pull requests.
