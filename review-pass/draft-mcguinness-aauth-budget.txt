@@ -1,0 +1,555 @@
+
+
+
+
+Network Working Group                                      K. McGuinness
+Internet-Draft                                               Independent
+Intended status: Standards Track                            19 July 2026
+Expires: 20 January 2027
+
+
+                      Budgeted Missions for AAuth
+                  draft-mcguinness-aauth-budget-latest
+
+Abstract
+
+   AAuth missions express intent and tools, never quantity: nothing a
+   person approves says how much an agent may spend.  This document
+   defines the budget, a hard cap on cumulative monetary spend at one
+   resource, proposed by the agent as part of its mission, approved by
+   the person at the Person Server, committed under the mission's s256,
+   carried in every auth token, and enforced by the resource that meters
+   its own service.  A budget is a damage cap, not a payment instrument:
+   a compromised agent spends at most the remainder.  The extension adds
+   one mission member, one auth-token claim, one resource metadata
+   member, and one error code, and no new protocol.
+
+About This Document
+
+   This note is to be removed before publishing as an RFC.
+
+   The latest revision of this draft can be found at
+   https://mcguinness.github.io/draft-mcguinness-aauth-budget/draft-
+   mcguinness-aauth-budget.html.  Status information for this document
+   may be found at https://datatracker.ietf.org/doc/draft-mcguinness-
+   aauth-budget/.
+
+   Source for this draft and an issue tracker can be found at
+   https://github.com/mcguinness/draft-mcguinness-aauth-budget.
+
+Status of This Memo
+
+   This Internet-Draft is submitted in full conformance with the
+   provisions of BCP 78 and BCP 79.
+
+   Internet-Drafts are working documents of the Internet Engineering
+   Task Force (IETF).  Note that other groups may also distribute
+   working documents as Internet-Drafts.  The list of current Internet-
+   Drafts is at https://datatracker.ietf.org/drafts/current/.
+
+   Internet-Drafts are draft documents valid for a maximum of six months
+   and may be updated, replaced, or obsoleted by other documents at any
+   time.  It is inappropriate to use Internet-Drafts as reference
+   material or to cite them other than as "work in progress."
+
+   This Internet-Draft will expire on 20 January 2027.
+
+Copyright Notice
+
+   Copyright (c) 2026 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents (https://trustee.ietf.org/
+   license-info) in effect on the date of publication of this document.
+   Please review these documents carefully, as they describe your rights
+   and restrictions with respect to this document.  Code Components
+   extracted from this document must include Revised BSD License text as
+   described in Section 4.e of the Trust Legal Provisions and are
+   provided without warranty as described in the Revised BSD License.
+
+Table of Contents
+
+   1.  Introduction
+     1.1.  Applicability
+   2.  Conventions and Terminology
+   3.  Scope and Trust Boundary
+   4.  The budgets Mission Member
+     4.1.  Consent
+     4.2.  Immutability and Top-Off
+     4.3.  Worked Example
+   5.  The budget Auth-Token Claim
+   6.  Metering
+   7.  Budget State
+   8.  Exhaustion
+   9.  Conformance
+   10. Security Considerations
+   11. Privacy Considerations
+   12. IANA Considerations
+   13. References
+     13.1.  Normative References
+     13.2.  Informative References
+   Acknowledgments
+   Author's Address
+
+1.  Introduction
+
+   The AAuth protocol [I-D.draft-hardt-oauth-aauth-protocol] gives
+   agents their own identity, routes their authorization through a
+   Person Server (PS), and binds approved missions to requests by
+   reference.  Its missions express intent and tools, never quantity.
+   AAuth reserves HTTP status 402 for the case where payment is
+   additionally required, but defines no authorization object behind it:
+   nothing a person approves says how much an agent may spend.
+
+   This document supplies that object.  A budget is a hard cap on
+   cumulative spend at one resource:
+
+   *  proposed by the agent in its mission proposal;
+
+   *  approved, possibly lowered, by the person at the PS;
+
+   *  committed under the mission's s256, so the cap is immutable and
+      the reference to it is signature-covered on every request;
+
+   *  carried in every auth token issued under the mission, so the
+      resource needs no call to the PS; and
+
+   *  enforced by the resource, which meters its own service and refuses
+      further spend once the cap is reached.
+
+   The budget is a damage cap, not a payment instrument.  AAuth's
+   substrate already key-binds every token and signs every request; the
+   budget bounds the remaining case, agent or key compromise, at the
+   amount the person consented to.
+
+   The extension adds four names and no new protocol: one mission member
+   (budgets), one auth-token claim (budget), one resource metadata
+   member and endpoint (budget_endpoint), and one error code
+   (budget_exhausted).
+
+   Profiles pin what this document deliberately leaves open: the pricing
+   unit a resource publishes, the carriage of per-response debit
+   reporting, the error body of its API surface, and the payment
+   relationship behind the balance.  TPX-A
+   ([I-D.draft-mcguinness-aauth-budget-tpx]), the AAuth profile of the
+   Token Pony Express [TPX], is the motivating profile: metered LLM
+   inference grants, with credits as the published unit and an OpenAI-
+   compatible API surface.
+
+1.1.  Applicability
+
+   This document tracks draft-hardt-oauth-aauth-protocol-08, an
+   individual Internet-Draft; a change to AAuth's mission or token
+   surfaces revises this document.  It requires a deployment that
+   operates a Person Server and uses AAuth missions.
+
+2.  Conventions and Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in
+   BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+   This document uses Person Server (PS), Access Server, agent, agent
+   token, resource token, auth token, mission blob, mission log, s256,
+   and the AAuth-Mission header as defined by
+   [I-D.draft-hardt-oauth-aauth-protocol].  It additionally uses:
+
+   Budget:  A hard cap on cumulative monetary spend at one resource
+      under one mission, as this document defines it.
+
+   Payee:  The resource being paid: the party that prices its own
+      service, meters usage, and enforces the budget.
+
+   All JSON shown in this document is non-normative and illustrative;
+   the member definitions in the surrounding text are authoritative.
+
+3.  Scope and Trust Boundary
+
+   This is a payee-enforced damage cap, not a governance meter.  The
+   meter lives at the resource because only the resource knows usage,
+   and the resource prices its own service.  That self-reported meter is
+   sound precisely because the budget bounds what that one resource may
+   debit from a relationship the person already holds with it.
+
+   Consequently:
+
+   *  A budget bounds spend at the named resource.  It does not bound
+      agent behavior across resources.
+
+   *  Cross-resource aggregate spend, call-count caps, and duration caps
+      are governance-layer consumption bounds: metering them exactly
+      across decision points is a distributed-counting problem with
+      reserve, commit, and settlement machinery of its own, and is out
+      of scope.  Governance profiles that meter at a policy decision
+      point compose with this extension unchanged, since budgets is an
+      ordinary blob member committed under s256.
+
+   *  Non-monetary quantity caps are out of scope.  Budgets are money:
+      the one unit every person can consent to.
+
+4.  The budgets Mission Member
+
+   An agent proposes budgets in its mission proposal; the approved
+   mission blob carries the granted values.  Both use one member:
+
+   {
+     "budgets": [
+       { "resource": "https://api.search.example",
+         "amount": "2.00",
+         "currency": "USD" }
+     ]
+   }
+
+   Each entry has the members:
+
+   resource:  REQUIRED.  The resource identifier the cap applies to, an
+      absolute HTTPS URI.  At most one entry per resource.
+
+   amount:  REQUIRED.  A string.  A positive decimal number: the maximum
+      cumulative spend.
+
+   currency:  REQUIRED.  A string.  An ISO 4217 currency code.
+
+   A mission MAY carry entries for several resources; each entry is
+   independent.  The proposal is a request, never authority: the granted
+   values exist only in the approved blob.
+
+   A profile MAY add members to an entry.  Consumers fail closed: a
+   Person Server MUST reject a proposal whose budgets entries carry
+   members it does not recognize or values it cannot render for consent,
+   and a resource MUST refuse budgeted access it cannot fully enforce
+   (Section 5).
+
+4.1.  Consent
+
+   The PS authenticates the person and renders each proposed entry: the
+   resource, and the amount with its currency.  The person or the PS MAY
+   grant a lower amount than proposed; the granted amount MUST NOT
+   exceed the proposed amount.  The blob's budgets member carries the
+   granted values, and the agent MUST read them from the blob, not from
+   its proposal.
+
+   The mission description is the agent's narrative, not the grant: the
+   PS MUST render it sanitized, per AAuth, and visually distinct from
+   the amounts it asks the person to approve.
+
+4.2.  Immutability and Top-Off
+
+   The blob is immutable under s256, so a budget cannot be raised in
+   place.  A top-off is a new mission proposal; the person decides.
+   AAuth's permission endpoint is not used for budget changes, because
+   the cap is committed under s256.  A budget has no lifetime of its
+   own: it ends with the mission.  When a budget is spent or the task is
+   done, the agent SHOULD propose completion with a summary that
+   includes total spend.
+
+4.3.  Worked Example
+
+   An approved mission blob for a digest agent with a $2.00 cap:
+
+   {
+     "approver": "https://ps.example",
+     "agent": "aauth:scout@agents.example",
+     "approved_at": "2026-07-18T09:05:42Z",
+     "description":
+       "Compile a daily digest of Doppler launch coverage this week.",
+     "approved_tools": [
+       { "name": "search.query",
+         "description": "Web search at api.search.example" }
+     ],
+     "capabilities": ["interaction"],
+     "budgets": [
+       { "resource": "https://api.search.example",
+         "amount": "2.00",
+         "currency": "USD" }
+     ]
+   }
+
+   Per AAuth, s256 is computed over the exact response body bytes; for
+   the compact (whitespace-free) serialization of this blob, in the
+   member order shown, the mission reference is:
+
+   AAuth-Mission: approver="https://ps.example";
+       s256="q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+
+   The reference is covered by the HTTP Message Signature [RFC9421] on
+   every request that carries it, per AAuth, so the cap the person
+   approved is bound to every call made under it.
+
+5.  The budget Auth-Token Claim
+
+   An auth token issued under a mission whose budgets member has an
+   entry matching the token's audience MUST carry that granted entry,
+   verbatim, in a budget claim, and only that entry:
+
+   {
+     "iss": "https://ps.example",
+     "dwk": "aauth-person.json",
+     "aud": "https://api.search.example",
+     "sub": "p-2c9wqe",
+     "agent": "aauth:scout@agents.example",
+     "cnf": { "jwk": { "kty": "OKP", "crv": "Ed25519", "x": "..." } },
+     "jti": "at_5Xr8kQ2mVn3pY7wZ1sB4",
+     "iat": 1784386800,
+     "exp": 1784390400,
+     "mission": {
+       "approver": "https://ps.example",
+       "s256": "q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+     },
+     "budget": {
+       "resource": "https://api.search.example",
+       "amount": "2.00",
+       "currency": "USD"
+     }
+   }
+
+   *  The entry's resource MUST equal the token's aud.
+
+   *  The mission claim is AAuth's own.  The resource never dereferences
+      the blob, so the cap travels in the token and the resource needs
+      no call to the PS.
+
+   *  Before issuing a token that carries a budget claim, the PS MUST
+      verify that the mission is active and that the resource token's
+      issuer equals the entry's resource.  In AAuth's federated mode the
+      PS conveys the granted entry in its federation request, and the
+      Access Server MUST copy it into the auth token it mints.
+
+   A token issued under the mission for a resource with no entry carries
+   no budget claim and conveys no budgeted access; whatever else it
+   conveys is ordinary AAuth authorization, outside this document.  A
+   resource MUST take the cap only from a verified auth token, never
+   from request content or any other source.
+
+   Auth tokens remain proof-of-possession and short-lived per AAuth, so
+   every renewal repasses the PS gate: a revoked mission stops new spend
+   authority within one auth-token lifetime.
+
+6.  Metering
+
+   The resource is the meter.  It MUST:
+
+   *  key the meter by the mission reference (approver, s256): the cap
+      is cumulative across all auth tokens and renewals under the
+      mission, not per token;
+
+   *  debit atomically with serving each request, in the committed
+      currency (a resource that prices in its own units converts at its
+      published relationship, a profile concern); and
+
+   *  refuse further budgeted requests once cumulative debits reach the
+      granted amount.
+
+   A request whose worst-case cost cannot fit the remainder MAY be
+   refused up front.  Exact concurrency control (reserve and commit) is
+   out of scope: a resource that admits requests concurrently accepts a
+   race bounded by the cost of requests in flight, or refuses up front.
+
+   A resource SHOULD report each debit in its response and MUST debit
+   once per served response; retry and idempotency semantics are API
+   surface, pinned by profiles, as is rounding in unit conversion.  The
+   committed amount remains the bound under both.
+
+7.  Budget State
+
+   A resource that enforces budgets MUST publish a budget_endpoint
+   member in its AAuth resource metadata document.  The endpoint,
+   authenticated like any resource request (signed, with the auth token
+   and the mission reference), returns the state of the budget named by
+   the presented mission reference:
+
+   {
+     "active": true,
+     "budget": { "amount": "2.00", "currency": "USD" },
+     "spent": { "amount": "0.31", "currency": "USD" }
+   }
+
+   active:  REQUIRED.  A boolean.  Whether the resource still serves
+      budgeted requests under this mission: false once the cap is
+      reached or the resource has otherwise stopped serving the grant.
+
+   budget:  REQUIRED.  The granted cap, as committed: an object with
+      amount and currency as defined in Section 4.
+
+   spent:  REQUIRED.  Cumulative debits to date, in the same shape.
+      Remaining budget is the difference.
+
+   A budget with no debits yet reports zero spent.  The response MUST
+   reflect every debit committed at the time it is produced.
+
+   The response MUST NOT include sub or any other identity claim.
+   Agents SHOULD read it before starting work whose cost is significant
+   relative to the remainder.
+
+8.  Exhaustion
+
+   When the cap is reached, the resource refuses with HTTP status 402
+   and the error code budget_exhausted:
+
+   {
+     "error": "budget_exhausted",
+     "error_description":
+       "The mission's budget at this resource is spent."
+   }
+
+   The body shown is AAuth's flat error shape; a profile MAY pin its
+   API's native error carriage instead.  The code, and the meaning "the
+   committed cap is spent, a new mission is the recovery", are this
+   document's.
+
+   Payment failures outside the cap (an empty prepaid balance, a failed
+   settlement) belong to the resource's payment relationship with the
+   person.  They are signaled with status 402 per AAuth and named by the
+   profile, not by this document.
+
+9.  Conformance
+
+   An implementation conforms in one of three roles.
+
+   A *budgeted resource*:
+
+   *  publishes budget_endpoint in its resource metadata and serves it
+      per Section 7;
+
+   *  rejects budgeted access on tokens lacking the mission or budget
+      claims, or carrying values it cannot enforce, failing closed
+      (Section 5);
+
+   *  meters per Section 6 and signals exhaustion per Section 8; and
+
+   *  keeps identity out of budget-state responses.
+
+   A *budgeted agent*:
+
+   *  proposes caps via budgets and reads the granted values from the
+      approved blob (Section 4.1);
+
+   *  verifies that the approved blob carries a budgets member before
+      treating the grant as budgeted: a PS that does not implement this
+      extension may approve the mission without one;
+
+   *  carries the mission reference on every request under the grant,
+      signature-covered, per AAuth; and
+
+   *  stops spending against an exhausted budget: recovery is a new
+      mission, decided by the person (Section 4.2).
+
+   A *Person Server*:
+
+   *  renders consent per Section 4.1 and supports granting lower
+      amounts;
+
+   *  returns the granted entries in the approved blob;
+
+   *  issues a token carrying a budget claim only while the mission is
+      active and only where the token audience equals the entry's
+      resource (Section 5); and
+
+   *  carries the budget claim in auth tokens it issues, or conveys the
+      granted entry in federation.
+
+10.  Security Considerations
+
+   *The cap is the backstop, not the lock.* AAuth's substrate already
+   key-binds every token and signs every request; a leaked auth token
+   spends nothing without the agent's key.  The budget bounds the
+   remaining case, agent or key compromise, at the amount the person
+   consented to.
+
+   *The meter is the payee.* A resource can misreport its own meter
+   exactly as any merchant can misprice.  The budget-state endpoint and
+   per-response debit reporting keep the meter auditable by the paying
+   person, and the PS's mission log records every token request under
+   the grant for reconciliation.  This document does not attempt to make
+   the payee's meter trustless.
+
+   *Consent is the ceiling.* The granted amount never exceeds the
+   proposed amount, the blob is immutable under s256, and the reference
+   is signature-covered per request: what the person approved is what
+   every call is bound to, byte-exact.  A PS that cannot render a
+   proposed entry rejects the proposal rather than approving what the
+   person could not see (Section 4).
+
+   *Issuance is the gate.* Every auth token under a mission passes the
+   PS, and tokens are short-lived per AAuth, so revocation latency is
+   bounded by the auth-token lifetime even where a resource retains no
+   revocation surface.
+
+11.  Privacy Considerations
+
+   *Each resource sees only its own entry.* The budget claim carries the
+   single entry matching the token's audience, so a resource never
+   learns the person's caps at other resources.  The full budgets member
+   travels only in the blob, which stays with the agent and the PS per
+   AAuth.
+
+   *Budget state carries no identity.* The budget-state response is
+   keyed by the mission reference and returns amounts only.  What the
+   resource learns, spend per mission per agent, is inherent to
+   metering; the mission reference correlation it rides is AAuth's own,
+   unchanged by this document.
+
+   *Amounts are sensitive.* A granted cap reveals what the person was
+   willing to spend.  It is disclosed to exactly the parties that must
+   enforce or audit it: the PS, the agent, and the named resource.
+
+12.  IANA Considerations
+
+   This document has no IANA actions.  The members it defines ride
+   inside structures whose extensibility their defining specification
+   states: budgets in the PS-produced mission blob, budget in the auth
+   token, and budget_endpoint in the resource metadata document, whose
+   unrecognized members AAuth consumers ignore.  Should AAuth establish
+   registries for those structures, the members this document defines
+   would be registered there.
+
+13.  References
+
+13.1.  Normative References
+
+   [I-D.draft-hardt-oauth-aauth-protocol]
+              Hardt, D., "AAuth Protocol", Work in Progress, Internet-
+              Draft, draft-hardt-oauth-aauth-protocol-08, 2026,
+              <https://datatracker.ietf.org/doc/html/draft-hardt-oauth-
+              aauth-protocol-08>.
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/rfc/rfc2119>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/rfc/rfc8174>.
+
+13.2.  Informative References
+
+   [I-D.draft-mcguinness-aauth-budget-tpx]
+              McGuinness, K., "TPX-A: An AAuth Profile for Metered LLM
+              Inference Grants", 2026, <https://mcguinness.github.io/
+              draft-mcguinness-aauth-budget/draft-mcguinness-aauth-
+              budget-tpx.html>.
+
+   [RFC9421]  Backman, A., Ed., Richer, J., Ed., and M. Sporny, "HTTP
+              Message Signatures", RFC 9421, DOI 10.17487/RFC9421,
+              February 2024, <https://www.rfc-editor.org/rfc/rfc9421>.
+
+   [TPX]      "TPX v0.2: An OAuth 2.0 profile for metered LLM inference
+              grants", 2026, <https://tokenpony.dev/spec/>.
+
+Acknowledgments
+
+   This extension generalizes the budget mechanism of the Token Pony
+   Express [TPX], which demonstrated the budget-as-grant pattern as an
+   OAuth 2.0 profile, onto AAuth's mission substrate.  TPX-A
+   ([I-D.draft-mcguinness-aauth-budget-tpx]) profiles this document back
+   onto that use case.
+
+Author's Address
+
+   Karl McGuinness
+   Independent
+   Email: public@karlmcguinness.com
