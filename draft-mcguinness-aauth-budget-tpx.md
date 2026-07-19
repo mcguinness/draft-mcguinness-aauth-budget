@@ -61,8 +61,8 @@ directly. TPX v0.2 is an OAuth 2.0 profile of that pattern. This
 document, TPX-A, is its AAuth-native sibling: the application is an
 agent with its own cryptographic identity, consent happens at the
 person's Person Server, and the grant is an approved AAuth mission
-carrying a Budgeted Missions for AAuth cap. TPX-A pins what that
-extension leaves to profiles: the credit as the published pricing
+carrying a budget defined by Budgeted Missions for AAuth. TPX-A pins
+what that extension leaves to profiles: the credit as the published pricing
 unit, a model restriction, the OpenAI-compatible inference API
 surface with its usage-accounting member, the balance model, and
 identity minimization.
@@ -246,11 +246,16 @@ the auth token's `cnf.jwk`, the token per AAuth, and the header's
 mission reference against the token's `mission` claim. A model
 outside the granted restriction is refused.
 
+All inference access is budgeted: the provider MUST refuse an
+inference request whose auth token carries no `budget` claim, per
+AAuth-Budget's fail-closed rule.
+
 ## Required Endpoints {#api-endpoints}
 
 Relative to the resource identifier:
 
 - `GET /models`: available models with per-token rates in credits.
+  It MAY be served without authentication.
 - `GET /grant`: the AAuth-Budget budget-state endpoint
   ({{api-grant}}). The provider publishes it as `budget_endpoint`
   in its resource metadata.
@@ -274,9 +279,10 @@ reported in the usage object:
 ~~~
 
 `credits_charged` is the TPX usage-accounting member, unchanged from
-TPX v0.2: the total credits debited for the request. Streaming
-responses report `usage`, including `credits_charged`, in the final
-SSE chunk.
+TPX v0.2: the total credits debited for the request, an integer.
+Debits are whole credits, so the currency view is exact to six
+decimal places. Streaming responses report `usage`, including
+`credits_charged`, in the final SSE chunk.
 
 ## Grant State {#api-grant}
 
@@ -425,10 +431,10 @@ $0.10 and holds $0.05. An auth token issued under the mission:
 ~~~
 
 The `budget` claim is the granted entry, verbatim, per AAuth-Budget;
-the provider learns the cap from the token and calls no one. After
-41250 credits of chat, `GET /grant` returns the state shown in
-{{api-grant}}, and a request that would exceed the remainder fails
-with `budget_exhausted` ({{api-errors}}).
+the provider learns the cap from the token and needs no call to the
+PS. After 41250 credits of chat, `GET /grant` returns the state
+shown in {{api-grant}}, and a request that would exceed the
+remainder fails with `budget_exhausted` ({{api-errors}}).
 
 # Conformance {#conformance}
 

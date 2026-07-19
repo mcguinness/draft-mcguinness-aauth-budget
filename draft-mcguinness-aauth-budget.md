@@ -51,22 +51,6 @@ informative:
         ins: K. McGuinness
         name: Karl McGuinness
     date: 2026
-  I-D.draft-mcguinness-mission-aauth:
-    title: "Mission-Bound Authorization for AAuth"
-    target: https://mcguinness.github.io/mission-bound-authorization/draft-mcguinness-mission-aauth.html
-    author:
-      -
-        ins: K. McGuinness
-        name: Karl McGuinness
-    date: 2026
-  I-D.draft-mcguinness-mission-metering:
-    title: "Mission Consumption Metering"
-    target: https://mcguinness.github.io/mission-bound-authorization/draft-mcguinness-mission-metering.html
-    author:
-      -
-        ins: K. McGuinness
-        name: Karl McGuinness
-    date: 2026
 
 --- abstract
 
@@ -164,13 +148,12 @@ Consequently:
 - A budget bounds spend at the named resource. It does not bound
   agent behavior across resources.
 - Cross-resource aggregate spend, call-count caps, and duration caps
-  are governance-layer consumption bounds with distributed-counting
-  machinery of their own, and are out of scope. Mission governance
-  profiles for AAuth Person Servers address that layer
-  ({{I-D.draft-mcguinness-mission-aauth}},
-  {{I-D.draft-mcguinness-mission-metering}}); this extension
-  requires none of them and composes with them unchanged, since
-  `budgets` is an ordinary blob member committed under `s256`.
+  are governance-layer consumption bounds: metering them exactly
+  across decision points is a distributed-counting problem with
+  reserve, commit, and settlement machinery of its own, and is out
+  of scope. Governance profiles that meter at a policy decision
+  point compose with this extension unchanged, since `budgets` is an
+  ordinary blob member committed under `s256`.
 - Non-monetary quantity caps are out of scope. Budgets are money:
   the one unit every person can consent to.
 
@@ -202,6 +185,10 @@ Each entry has the members:
 `currency`:
 : REQUIRED. A string. An ISO 4217 currency code.
 
+A mission MAY carry entries for several resources; each entry is
+independent. The proposal is a request, never authority: the granted
+values exist only in the approved blob.
+
 A profile MAY add members to an entry. Consumers fail closed: a
 Person Server MUST reject a proposal whose `budgets` entries carry
 members it does not recognize or values it cannot render for
@@ -226,9 +213,10 @@ the amounts it asks the person to approve.
 The blob is immutable under `s256`, so a budget cannot be raised in
 place. A top-off is a new mission proposal; the person decides.
 AAuth's permission endpoint is not used for budget changes, because
-the cap is committed under `s256`. When a budget is spent or the
-task is done, the agent SHOULD propose completion with a summary
-that includes total spend.
+the cap is committed under `s256`. A budget has no lifetime of its
+own: it ends with the mission. When a budget is spent or the task is
+done, the agent SHOULD propose completion with a summary that
+includes total spend.
 
 ## Worked Example {#example}
 
@@ -300,11 +288,17 @@ verbatim, in a `budget` claim, and only that entry:
 - The `mission` claim is AAuth's own. The resource never
   dereferences the blob, so the cap travels in the token and the
   resource needs no call to the PS.
-- Before issuing, the PS MUST verify that the mission is active and
-  that the resource token's issuer matches a granted entry's
-  `resource`. In AAuth's federated mode the PS conveys the granted
-  entry in its federation request, and the Access Server MUST copy
-  it into the auth token it mints.
+- Before issuing a token that carries a `budget` claim, the PS MUST
+  verify that the mission is active and that the resource token's
+  issuer equals the entry's `resource`. In AAuth's federated mode
+  the PS conveys the granted entry in its federation request, and
+  the Access Server MUST copy it into the auth token it mints.
+
+A token issued under the mission for a resource with no entry
+carries no `budget` claim and conveys no budgeted access; whatever
+else it conveys is ordinary AAuth authorization, outside this
+document. A resource MUST take the cap only from a verified auth
+token, never from request content or any other source.
 
 Auth tokens remain proof-of-possession and short-lived per AAuth, so
 every renewal repasses the PS gate: a revoked mission stops new
@@ -328,8 +322,10 @@ refused up front. Exact concurrency control (reserve and commit) is
 out of scope: a resource that admits requests concurrently accepts a
 race bounded by the cost of requests in flight, or refuses up front.
 
-A resource SHOULD report each debit in its response; the carriage is
-API surface, pinned by profiles.
+A resource SHOULD report each debit in its response and MUST debit
+once per served response; retry and idempotency semantics are API
+surface, pinned by profiles, as is rounding in unit conversion. The
+committed amount remains the bound under both.
 
 # Budget State {#state}
 
@@ -349,7 +345,8 @@ the presented mission reference:
 
 `active`:
 : REQUIRED. A boolean. Whether the resource still serves budgeted
-  requests under this mission.
+  requests under this mission: `false` once the cap is reached or
+  the resource has otherwise stopped serving the grant.
 
 `budget`:
 : REQUIRED. The granted cap, as committed: an object with `amount`
@@ -358,6 +355,9 @@ the presented mission reference:
 `spent`:
 : REQUIRED. Cumulative debits to date, in the same shape. Remaining
   budget is the difference.
+
+A budget with no debits yet reports zero `spent`. The response MUST
+reflect every debit committed at the time it is produced.
 
 The response MUST NOT include `sub` or any other identity claim.
 Agents SHOULD read it before starting work whose cost is significant
@@ -405,6 +405,9 @@ A **budgeted agent**:
 
 - proposes caps via `budgets` and reads the granted values from the
   approved blob ({{consent}});
+- verifies that the approved blob carries a `budgets` member before
+  treating the grant as budgeted: a PS that does not implement this
+  extension may approve the mission without one;
 - carries the mission reference on every request under the grant,
   signature-covered, per AAuth; and
 - stops spending against an exhausted budget: recovery is a new
@@ -415,8 +418,9 @@ A **Person Server**:
 - renders consent per {{consent}} and supports granting lower
   amounts;
 - returns the granted entries in the approved blob;
-- gates issuance on mission state and on the resource matching a
-  granted entry ({{claim}}); and
+- issues a token carrying a `budget` claim only while the mission is
+  active and only where the token audience equals the entry's
+  `resource` ({{claim}}); and
 - carries the `budget` claim in auth tokens it issues, or conveys
   the granted entry in federation.
 
