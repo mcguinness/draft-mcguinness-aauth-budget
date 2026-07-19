@@ -96,6 +96,7 @@ Table of Contents
      15.1.  Normative References
      15.2.  Informative References
    Appendix A.  Mapping from TPX v0.2
+   Appendix B.  Complete Protocol Exchange
    Acknowledgments
    Author's Address
 
@@ -310,7 +311,7 @@ Table of Contents
 
    "usage": {
      "prompt_tokens": 812,
-     "cached_tokens": 256,
+     "cached_tokens": 192,
      "completion_tokens": 214,
      "credits_charged": 1930
    }
@@ -476,7 +477,8 @@ Table of Contents
    the provider learns the cap from the token and needs no call to the
    PS.  After 41250 credits of chat, GET /grant returns the state shown
    in Section 7.4, and a request that would exceed the remainder fails
-   with budget_exhausted (Section 7.5).
+   with budget_exhausted (Section 7.5).  Appendix B walks the full
+   exchange.
 
 11.  Conformance
 
@@ -651,6 +653,240 @@ Appendix A.  Mapping from TPX v0.2
     +--------------------------------+-------------------------------+
 
                                  Table 2
+
+Appendix B.  Complete Protocol Exchange
+
+   This appendix is non-normative.  It walks Pony Chat through one full
+   grant: rates, proposal, approval, challenge, issuance, inference,
+   state, exhaustion, and completion.  JWTs are abbreviated, signatures
+   are elided, and AAuth's interaction machinery is reduced to its
+   shape; AAuth's own examples govern the substrate details.  Later
+   messages also elide Signature-Input and Signature; every request
+   remains signed as the first ones show.
+
+   Anyone can read the menu.  The provider's rates, in credits per
+   token:
+
+   GET /models HTTP/1.1
+   Host: api.tokenpony.dev
+
+   HTTP/1.1 200 OK
+   Content-Type: application/json
+
+   {
+     "models": [
+       { "id": "pony-8b",
+         "credits_per_token":
+           { "input": 1, "cached_input": 0.25, "output": 5 } },
+       { "id": "pony-70b",
+         "credits_per_token":
+           { "input": 4, "cached_input": 1, "output": 20 } }
+     ]
+   }
+
+   The agent aauth:pony-chat@ponychat.tokenpony.dev proposes a mission
+   at the person's PS, asking for 100000 credits ($0.10):
+
+   POST /mission HTTP/1.1
+   Host: ps.example
+   Content-Type: application/json
+   Signature-Input: sig=("@method" "@authority" "@path"
+       "signature-key");created=1784384400
+   Signature: sig=:...:
+   Signature-Key: sig=jwt;jwt="eyJ..agent-token.."
+
+   {
+     "description":
+       "Chat in Pony Chat using your Token Pony balance.",
+     "tools": [
+       { "name": "chat.completions",
+         "description":
+           "OpenAI-compatible chat completions at api.tokenpony.dev" }
+     ],
+     "budgets": [
+       { "resource": "https://api.tokenpony.dev",
+         "amount": "0.10",
+         "currency": "USD",
+         "models": ["pony-8b", "pony-70b"] }
+     ]
+   }
+
+   The PS defers while the person reviews (202, status: pending), then
+   the person grants half the ask.  Polling returns the approved mission
+   of Section 10, byte for byte, with its reference:
+
+   HTTP/1.1 200 OK
+   AAuth-Mission: approver="https://ps.example";
+       s256="EMIlPYHAY6dNVw_YguH7Vqde9hCAAtLHWRtZfCndpUc"
+   Content-Type: application/json
+
+   {
+     "approver": "https://ps.example",
+     "agent": "aauth:pony-chat@ponychat.tokenpony.dev",
+     "approved_at": "2026-07-18T14:32:11Z",
+     ...
+     "budgets": [
+       { "resource": "https://api.tokenpony.dev",
+         "amount": "0.05",
+         "currency": "USD",
+         "models": ["pony-8b", "pony-70b"] }
+     ]
+   }
+
+   The agent reads the granted values from the blob: 50000 credits.  Its
+   first inference attempt, signed with its agent token, draws the
+   challenge and a resource token:
+
+   POST /v1/chat/completions HTTP/1.1
+   Host: api.tokenpony.dev
+   Content-Type: application/json
+   AAuth-Mission: approver="https://ps.example";
+       s256="EMIlPYHAY6dNVw_YguH7Vqde9hCAAtLHWRtZfCndpUc"
+   Signature-Input: sig=("@method" "@authority" "@path"
+       "signature-key" "aauth-mission");created=1784386740
+   Signature: sig=:...:
+   Signature-Key: sig=jwt;jwt="eyJ..agent-token.."
+
+   HTTP/1.1 401 Unauthorized
+   AAuth-Requirement: requirement=auth-token;
+       resource-token="eyJ..resource-token.."
+
+   The resource token copies the mission reference from the header.  Its
+   payload:
+
+   {
+     "iss": "https://api.tokenpony.dev",
+     "dwk": "aauth-resource.json",
+     "aud": "https://ps.example",
+     "agent": "aauth:pony-chat@ponychat.tokenpony.dev",
+     "agent_jkt": "kV9CqXP3...",
+     "scope": "inference",
+     "mission": {
+       "approver": "https://ps.example",
+       "s256": "EMIlPYHAY6dNVw_YguH7Vqde9hCAAtLHWRtZfCndpUc"
+     },
+     "jti": "rt_8Zw2mKq4",
+     "iat": 1784386740,
+     "exp": 1784387040
+   }
+
+   The agent exchanges it at the PS, which verifies the mission is
+   active and the issuer matches the granted entry, and issues the auth
+   token of Section 10, budget claim and all:
+
+   POST /token HTTP/1.1
+   Host: ps.example
+   Content-Type: application/json
+   AAuth-Mission: approver="https://ps.example";
+       s256="EMIlPYHAY6dNVw_YguH7Vqde9hCAAtLHWRtZfCndpUc"
+   Signature-Input: sig=("@method" "@authority" "@path"
+       "signature-key" "aauth-mission");created=1784386790
+   Signature: sig=:...:
+   Signature-Key: sig=jwt;jwt="eyJ..agent-token.."
+
+   {
+     "resource_token": "eyJ..resource-token..",
+     "justification": "Answer the user's next message in Pony Chat."
+   }
+
+   HTTP/1.1 200 OK
+   Content-Type: application/json
+
+   { "auth_token": "eyJ..auth-token..", "expires_in": 3600 }
+
+   Inference proper, signed with the key the auth token's cnf.jwk names:
+
+   POST /v1/chat/completions HTTP/1.1
+   Host: api.tokenpony.dev
+   Content-Type: application/json
+   AAuth-Mission: approver="https://ps.example";
+       s256="EMIlPYHAY6dNVw_YguH7Vqde9hCAAtLHWRtZfCndpUc"
+   Signature-Key: sig=jwt;jwt="eyJ..auth-token.."
+
+   {
+     "model": "pony-8b",
+     "messages": [ { "role": "user", "content": "..." } ],
+     "stream": false
+   }
+
+   HTTP/1.1 200 OK
+   Content-Type: application/json
+
+   {
+     "id": "chatcmpl-7QkX",
+     "model": "pony-8b",
+     "choices": [
+       { "message": { "role": "assistant", "content": "..." },
+         "finish_reason": "stop" }
+     ],
+     "usage": {
+       "prompt_tokens": 812,
+       "cached_tokens": 192,
+       "completion_tokens": 214,
+       "credits_charged": 1930
+     }
+   }
+
+   At pony-8b rates that is 812 fresh input, 48 cached input, and 1070
+   output credits: 1930, debited against the grant.  Sessions later,
+   each hour's auth token re-obtained through the same exchange, the
+   agent checks the meter:
+
+   GET /grant HTTP/1.1
+   Host: api.tokenpony.dev
+   AAuth-Mission: approver="https://ps.example";
+       s256="EMIlPYHAY6dNVw_YguH7Vqde9hCAAtLHWRtZfCndpUc"
+   Signature-Key: sig=jwt;jwt="eyJ..auth-token.."
+
+   HTTP/1.1 200 OK
+   Content-Type: application/json
+
+   {
+     "active": true,
+     "budget": { "amount": "0.05", "currency": "USD" },
+     "spent": { "amount": "0.04125", "currency": "USD" },
+     "credits": 50000,
+     "credits_used": 41250
+   }
+
+   8750 credits remain.  When they are gone, the next completion fails
+   closed in the API's own error shape:
+
+   HTTP/1.1 402 Payment Required
+   Content-Type: application/json
+
+   {
+     "error": {
+       "code": "budget_exhausted",
+       "message": "This grant's budget is spent.",
+       "type": "invalid_request_error"
+     }
+   }
+
+   The agent surfaces the exhaustion to the person and proposes
+   completion, spend in the summary:
+
+   POST /interaction HTTP/1.1
+   Host: ps.example
+   Content-Type: application/json
+   AAuth-Mission: approver="https://ps.example";
+       s256="EMIlPYHAY6dNVw_YguH7Vqde9hCAAtLHWRtZfCndpUc"
+   Signature-Key: sig=jwt;jwt="eyJ..agent-token.."
+
+   {
+     "type": "completion",
+     "summary":
+       "Chat ended. Spent 50000 of 50000 credits ($0.05)."
+   }
+
+   If the person wants more Pony Chat, that is a new mission with a
+   fresh budget; the person decides, exactly as in TPX v0.2's top-off.
+   Any later token request under the terminated reference fails closed:
+
+   {
+     "error": "mission_terminated",
+     "error_description": "This mission has ended."
+   }
 
 Acknowledgments
 

@@ -89,6 +89,7 @@ Table of Contents
    13. References
      13.1.  Normative References
      13.2.  Informative References
+   Appendix A.  Complete Protocol Exchange
    Acknowledgments
    Author's Address
 
@@ -277,7 +278,8 @@ Table of Contents
 
    The reference is covered by the HTTP Message Signature [RFC9421] on
    every request that carries it, per AAuth, so the cap the person
-   approved is bound to every call made under it.
+   approved is bound to every call made under it.  Appendix A walks this
+   grant end to end.
 
 5.  The budget Auth-Token Claim
 
@@ -539,6 +541,212 @@ Table of Contents
 
    [TPX]      "TPX v0.2: An OAuth 2.0 profile for metered LLM inference
               grants", 2026, <https://tokenpony.dev/spec/>.
+
+Appendix A.  Complete Protocol Exchange
+
+   This appendix is non-normative.  It walks the digest agent of
+   Section 4.3 through one full grant: proposal, approval, challenge,
+   issuance, spend, state, exhaustion, and completion.  JWTs are
+   abbreviated, signatures are elided, and AAuth's interaction machinery
+   is reduced to its shape; AAuth's own examples govern the substrate
+   details.  Later messages also elide Signature-Input and Signature;
+   every request remains signed as the first ones show.
+
+   The agent aauth:scout@agents.example proposes a mission at the
+   person's PS, asking for a $5.00 cap:
+
+   POST /mission HTTP/1.1
+   Host: ps.example
+   Content-Type: application/json
+   Signature-Input: sig=("@method" "@authority" "@path"
+       "signature-key");created=1784365200
+   Signature: sig=:...:
+   Signature-Key: sig=jwt;jwt="eyJ..agent-token.."
+
+   {
+     "description":
+       "Compile a daily digest of Doppler launch coverage this week.",
+     "tools": [
+       { "name": "search.query",
+         "description": "Web search at api.search.example" }
+     ],
+     "budgets": [
+       { "resource": "https://api.search.example",
+         "amount": "5.00",
+         "currency": "USD" }
+     ]
+   }
+
+   Review is asynchronous; the PS defers while the person looks:
+
+   HTTP/1.1 202 Accepted
+   Location: https://ps.example/pending/m7Qk
+   Retry-After: 5
+   Content-Type: application/json
+
+   { "status": "pending" }
+
+   The person approves at a lower cap, $2.00.  Polling the pending URL
+   now returns the approved mission: the blob of Section 4.3, byte for
+   byte, with its reference in the response header:
+
+   HTTP/1.1 200 OK
+   AAuth-Mission: approver="https://ps.example";
+       s256="q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+   Content-Type: application/json
+
+   {
+     "approver": "https://ps.example",
+     "agent": "aauth:scout@agents.example",
+     "approved_at": "2026-07-18T09:05:42Z",
+     ...
+     "budgets": [
+       { "resource": "https://api.search.example",
+         "amount": "2.00",
+         "currency": "USD" }
+     ]
+   }
+
+   The agent reads the granted cap from the blob: it asked for $5.00 and
+   holds $2.00.  It stores the bytes exactly as received and turns to
+   the resource.  The first request is signed with its agent token and
+   carries the mission reference; the resource answers with the
+   challenge and a resource token:
+
+   GET /search?q=doppler+launch HTTP/1.1
+   Host: api.search.example
+   AAuth-Mission: approver="https://ps.example";
+       s256="q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+   Signature-Input: sig=("@method" "@authority" "@path"
+       "signature-key" "aauth-mission");created=1784386740
+   Signature: sig=:...:
+   Signature-Key: sig=jwt;jwt="eyJ..agent-token.."
+
+   HTTP/1.1 401 Unauthorized
+   AAuth-Requirement: requirement=auth-token;
+       resource-token="eyJ..resource-token.."
+
+   The resource token names the agent and copies the mission reference
+   from the header.  Its payload:
+
+   {
+     "iss": "https://api.search.example",
+     "dwk": "aauth-resource.json",
+     "aud": "https://ps.example",
+     "agent": "aauth:scout@agents.example",
+     "agent_jkt": "kV9CqXP3...",
+     "scope": "search",
+     "mission": {
+       "approver": "https://ps.example",
+       "s256": "q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+     },
+     "jti": "rt_3Fq9xWv2",
+     "iat": 1784386740,
+     "exp": 1784387040
+   }
+
+   The agent exchanges it at the PS.  The mission is active and the
+   resource token's issuer equals the entry's resource, so the PS issues
+   the auth token of Section 5, budget claim and all:
+
+   POST /token HTTP/1.1
+   Host: ps.example
+   Content-Type: application/json
+   AAuth-Mission: approver="https://ps.example";
+       s256="q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+   Signature-Input: sig=("@method" "@authority" "@path"
+       "signature-key" "aauth-mission");created=1784386790
+   Signature: sig=:...:
+   Signature-Key: sig=jwt;jwt="eyJ..agent-token.."
+
+   {
+     "resource_token": "eyJ..resource-token..",
+     "justification": "Search for today's launch coverage."
+   }
+
+   HTTP/1.1 200 OK
+   Content-Type: application/json
+
+   { "auth_token": "eyJ..auth-token..", "expires_in": 3600 }
+
+   The agent retries the search, now signed with the key the auth
+   token's cnf.jwk names.  The resource verifies token, signature, and
+   reference equality, serves, and debits the grant, reporting the debit
+   in its own carriage (illustrative here; profiles pin it):
+
+   GET /search?q=doppler+launch HTTP/1.1
+   Host: api.search.example
+   AAuth-Mission: approver="https://ps.example";
+       s256="q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+   Signature-Key: sig=jwt;jwt="eyJ..auth-token.."
+
+   HTTP/1.1 200 OK
+   Content-Type: application/json
+
+   {
+     "results": [ "..." ],
+     "debit": { "amount": "0.01", "currency": "USD" }
+   }
+
+   Three days in, each hour's auth token re-obtained through the same
+   exchange, the agent checks the meter before a deeper crawl, at the
+   endpoint the resource metadata names in budget_endpoint:
+
+   GET /budget HTTP/1.1
+   Host: api.search.example
+   AAuth-Mission: approver="https://ps.example";
+       s256="q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+   Signature-Key: sig=jwt;jwt="eyJ..auth-token.."
+
+   HTTP/1.1 200 OK
+   Content-Type: application/json
+
+   {
+     "active": true,
+     "budget": { "amount": "2.00", "currency": "USD" },
+     "spent": { "amount": "0.31", "currency": "USD" }
+   }
+
+   The digest keeps running.  When cumulative debits reach the cap, the
+   next request fails closed:
+
+   HTTP/1.1 402 Payment Required
+   Content-Type: application/json
+
+   {
+     "error": "budget_exhausted",
+     "error_description":
+       "The mission's budget at this resource is spent."
+   }
+
+   The week is over and the task is done, so instead of proposing a top-
+   off mission the agent proposes completion, spend in the summary:
+
+   POST /interaction HTTP/1.1
+   Host: ps.example
+   Content-Type: application/json
+   AAuth-Mission: approver="https://ps.example";
+       s256="q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+   Signature-Key: sig=jwt;jwt="eyJ..agent-token.."
+
+   {
+     "type": "completion",
+     "summary":
+       "Week's digest complete. Spent $2.00 of the $2.00 budget."
+   }
+
+   The person accepts; the PS terminates the mission.  Any later token
+   request under the reference fails closed:
+
+   {
+     "error": "mission_terminated",
+     "error_description": "This mission has ended."
+   }
+
+   Every message above rides AAuth surfaces unchanged.  The extension's
+   whole footprint is the budgets member proposed and granted, the
+   budget claim issued, the meter and its endpoint at the resource, and
+   the 402 that ends the spending.
 
 Acknowledgments
 
