@@ -1416,43 +1416,58 @@ is compared by exact string match. At most one entry per resource.<a href="#sect
 <dt id="section-4-4.3">
 <code>amount</code>:</dt>
         <dd style="margin-left: 1.5em" id="section-4-4.4">
-          <p id="section-4-4.4.1"><span class="bcp14">REQUIRED</span>. A string containing a positive decimal number: the
-maximum cumulative spend. Its syntax is this document's decimal
-string: one or more ASCII digits, optionally followed by a period
-and one or more ASCII digits, where the integer part has no leading
-zero unless it is exactly <code>0</code>, and signs, exponents, grouping
-characters, and surrounding whitespace are not allowed. The decimal
-string grammar admits zero; an <code>amount</code> <span class="bcp14">MUST</span> be positive.<a href="#section-4-4.4.1" class="pilcrow">¶</a></p>
+          <p id="section-4-4.4.1"><span class="bcp14">REQUIRED</span>. The maximum cumulative spend: a decimal string with a
+positive value. A decimal string is one or more ASCII digits,
+optionally followed by a period and one or more ASCII digits, with
+no leading zero in the integer part unless it is exactly <code>0</code>, and
+no sign, exponent, grouping character, or whitespace. The grammar
+admits zero; an <code>amount</code> <span class="bcp14">MUST</span> be positive.<a href="#section-4-4.4.1" class="pilcrow">¶</a></p>
 </dd>
         <dd class="break"></dd>
 <dt id="section-4-4.5">
 <code>currency</code>:</dt>
         <dd style="margin-left: 1.5em" id="section-4-4.6">
-          <p id="section-4-4.6.1"><span class="bcp14">REQUIRED</span>. A string containing exactly three uppercase ASCII letters
-and naming a currency registered by ISO 4217 <span>[<a href="#ISO4217" class="cite xref">ISO4217</a>]</span>. The
-special-purpose codes <code>XTS</code> (testing) and <code>XXX</code> (no currency) <span class="bcp14">MUST NOT</span> be used.<a href="#section-4-4.6.1" class="pilcrow">¶</a></p>
+          <p id="section-4-4.6.1"><span class="bcp14">REQUIRED</span>. A three-uppercase-ASCII-letter currency code registered
+by ISO 4217 <span>[<a href="#ISO4217" class="cite xref">ISO4217</a>]</span>. The special-purpose codes <code>XTS</code> and <code>XXX</code>
+            <span class="bcp14">MUST NOT</span> be used.<a href="#section-4-4.6.1" class="pilcrow">¶</a></p>
 </dd>
       <dd class="break"></dd>
 </dl>
-<p id="section-4-5">A present <code>budgets</code> member <span class="bcp14">MUST</span> be a non-empty array. A mission <span class="bcp14">MAY</span>
-carry entries for several resources; each entry is independent.
-Amounts are compared using exact base-10 arithmetic, not lexical
-comparison or binary floating-point arithmetic that could permit the
-cap to be exceeded. Profiles <span class="bcp14">MAY</span> limit the supported number of digits
-or fractional digits.<a href="#section-4-5" class="pilcrow">¶</a></p>
+<p id="section-4-5">A present <code>budgets</code> member <span class="bcp14">MUST</span> be a non-empty array; entries for
+different resources are independent. Amounts are compared
+numerically in exact base-10 arithmetic — never lexically or in
+binary floating point that could overshoot the cap. Profiles <span class="bcp14">MAY</span>
+limit the supported number of digits or fractional digits.<a href="#section-4-5" class="pilcrow">¶</a></p>
 <p id="section-4-6">The proposal is a request, never authority: the granted values exist
-only in the approved blob. Every granted entry <span class="bcp14">MUST</span> correspond by
-exact <code>resource</code> match to a proposed entry, <span class="bcp14">MUST</span> retain its proposed
-<code>currency</code>, and <span class="bcp14">MUST</span> have an <code>amount</code> numerically less than or equal
-to the proposed amount. The PS <span class="bcp14">MAY</span> omit a proposed entry. It <span class="bcp14">MUST NOT</span>
-add an entry for an unproposed resource.<a href="#section-4-6" class="pilcrow">¶</a></p>
-<p id="section-4-7">A profile <span class="bcp14">MAY</span> add members to an entry. Consumers fail closed: a
-Person Server <span class="bcp14">MUST</span> reject a proposal whose <code>budgets</code> entries carry
-members it does not recognize or values it cannot render for
-consent, and a resource <span class="bcp14">MUST</span> refuse budgeted access it cannot fully
-enforce (<a href="#claim" class="auto internal xref">Section 5</a>). A profile that permits a PS to change an added
-member <span class="bcp14">MUST</span> define which changes are attenuating; a granted value
-<span class="bcp14">MUST NOT</span> broaden the proposed authority.<a href="#section-4-7" class="pilcrow">¶</a></p>
+only in the approved blob. Relative to the proposal, every granted
+entry:<a href="#section-4-6" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-4-7.1">
+          <p id="section-4-7.1.1"><span class="bcp14">MUST</span> match a proposed entry by exact <code>resource</code> comparison: the PS
+<span class="bcp14">MAY</span> omit a proposed entry but <span class="bcp14">MUST NOT</span> add one for an unproposed
+resource;<a href="#section-4-7.1.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-4-7.2">
+          <p id="section-4-7.2.1"><span class="bcp14">MUST</span> retain the proposed <code>currency</code>; and<a href="#section-4-7.2.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-4-7.3">
+          <p id="section-4-7.3.1"><span class="bcp14">MUST NOT</span> exceed the proposed <code>amount</code>.<a href="#section-4-7.3.1" class="pilcrow">¶</a></p>
+</li>
+      </ul>
+<p id="section-4-8">A profile <span class="bcp14">MAY</span> add members to an entry; one that lets the PS change
+an added member <span class="bcp14">MUST</span> define which changes are attenuating, and a
+granted value <span class="bcp14">MUST NOT</span> broaden the proposed authority. Consumers
+fail closed:<a href="#section-4-8" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-4-9.1">
+          <p id="section-4-9.1.1">a PS <span class="bcp14">MUST</span> reject a proposal whose entries carry members it does
+not recognize or values it cannot render for consent; and<a href="#section-4-9.1.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-4-9.2">
+          <p id="section-4-9.2.1">a resource <span class="bcp14">MUST</span> refuse budgeted access it cannot fully enforce
+(<a href="#claim" class="auto internal xref">Section 5</a>).<a href="#section-4-9.2.1" class="pilcrow">¶</a></p>
+</li>
+      </ul>
 <div id="consent">
 <section id="section-4.1">
         <h3 id="name-consent">
@@ -1566,9 +1581,8 @@ verbatim, in a <code>budget</code> claim, and only that entry:<a href="#section-
 string comparison.<a href="#section-5-3.1.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-5-3.2">
-          <p id="section-5-3.2.1">The <code>mission</code> claim is AAuth's own. The resource never
-dereferences the blob, so the cap travels in the token and the
-resource needs no call to the PS.<a href="#section-5-3.2.1" class="pilcrow">¶</a></p>
+          <p id="section-5-3.2.1">The <code>mission</code> claim is AAuth's own; the cap travels in the token,
+so the resource never dereferences the blob or calls the PS.<a href="#section-5-3.2.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-5-3.3">
           <p id="section-5-3.3.1">Before issuing a token that carries a <code>budget</code> claim, the PS <span class="bcp14">MUST</span>
@@ -1577,47 +1591,54 @@ issuer equals the entry's <code>resource</code>, using exact string
 comparison.<a href="#section-5-3.3.1" class="pilcrow">¶</a></p>
 </li>
       </ul>
-<p id="section-5-4">In AAuth's federated mode, when the PS federates a token request for
-a resource with a granted entry, the PS-to-AS request to the Access
-Server's token endpoint <span class="bcp14">MUST</span> include a <code>budget</code> parameter whose value
-is that granted entry verbatim. The PS <span class="bcp14">MUST</span> select the entry using
-the resource token's <code>mission</code> and <code>iss</code> claims; it <span class="bcp14">MUST NOT</span> accept a
-budget value from the agent's token request. The parameter asserts
-the granted entry for the mission named by the accompanying resource
-token's <code>mission</code> claim. The Access Server <span class="bcp14">MUST</span> verify that:<a href="#section-5-4" class="pilcrow">¶</a></p>
+<p id="section-5-4">In AAuth's federated mode, the budget travels as a <code>budget</code>
+parameter on the authenticated PS-to-AS token request; an agent
+cannot supply or modify it. The PS:<a href="#section-5-4" class="pilcrow">¶</a></p>
 <ul class="normal">
 <li class="normal" id="section-5-5.1">
-          <p id="section-5-5.1.1">the resource token carries a <code>mission</code> claim, which the Access
-Server copies into the auth token it mints;<a href="#section-5-5.1.1" class="pilcrow">¶</a></p>
+          <p id="section-5-5.1.1"><span class="bcp14">MUST</span> include the parameter, holding the granted entry verbatim,
+whenever it federates a token request for a resource with a
+granted entry; and<a href="#section-5-5.1.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-5-5.2">
-          <p id="section-5-5.2.1">the resource token's <code>iss</code> equals <code>budget.resource</code>; and<a href="#section-5-5.2.1" class="pilcrow">¶</a></p>
-</li>
-        <li class="normal" id="section-5-5.3">
-          <p id="section-5-5.3.1">the auth token it is minting has an <code>aud</code> equal to
-<code>budget.resource</code>.<a href="#section-5-5.3.1" class="pilcrow">¶</a></p>
+          <p id="section-5-5.2.1"><span class="bcp14">MUST</span> select the entry using the resource token's <code>mission</code> and
+<code>iss</code> claims, never a value from the agent's token request. The
+parameter asserts the granted entry for the mission named by the
+accompanying resource token's <code>mission</code> claim.<a href="#section-5-5.2.1" class="pilcrow">¶</a></p>
 </li>
       </ul>
-<p id="section-5-6">If all checks succeed, the Access Server <span class="bcp14">MUST</span> copy the parameter
-verbatim into the auth token's <code>budget</code> claim. If the parameter is
-malformed, cannot be enforced, or is absent where Access Server
-policy requires a budget, it <span class="bcp14">MUST</span> refuse issuance. The Access Server
-never sees the blob and cannot detect an omitted parameter itself;
-the resource's fail-closed rule covers that case, since the minted
-token carries no <code>budget</code> claim and conveys no budgeted access. This
-parameter is part of the authenticated AAuth federation exchange; an
-agent cannot supply or modify it.<a href="#section-5-6" class="pilcrow">¶</a></p>
-<p id="section-5-7">A token issued under the mission for a resource with no entry carries
-no <code>budget</code> claim and conveys no budgeted access; whatever else it
-conveys is ordinary AAuth authorization, outside this document. A
-resource <span class="bcp14">MUST</span> take the cap and mission reference only from a verified
-auth token, never from request content or any other source. If an
-<code>AAuth-Mission</code> header is also present, the resource <span class="bcp14">MUST</span> verify that
-it equals the token's <code>mission</code> claim before serving the request.<a href="#section-5-7" class="pilcrow">¶</a></p>
-<p id="section-5-8">Auth tokens remain proof-of-possession and short-lived per AAuth.
+<p id="section-5-6">The Access Server:<a href="#section-5-6" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-5-7.1">
+          <p id="section-5-7.1.1"><span class="bcp14">MUST</span> verify that the resource token carries a <code>mission</code> claim, and
+copy it into the auth token it mints;<a href="#section-5-7.1.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-5-7.2">
+          <p id="section-5-7.2.1"><span class="bcp14">MUST</span> verify that the resource token's <code>iss</code> and the minted token's
+<code>aud</code> both equal <code>budget.resource</code>; and<a href="#section-5-7.2.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-5-7.3">
+          <p id="section-5-7.3.1"><span class="bcp14">MUST</span> copy the parameter verbatim into the auth token's <code>budget</code>
+claim once the checks pass, and refuse issuance when the parameter
+is malformed, cannot be enforced, or is absent where its policy
+requires a budget.<a href="#section-5-7.3.1" class="pilcrow">¶</a></p>
+</li>
+      </ul>
+<p id="section-5-8">The Access Server never sees the blob, so it cannot detect an
+omitted parameter; the resulting token simply carries no <code>budget</code>
+claim, and the resource fails closed.<a href="#section-5-8" class="pilcrow">¶</a></p>
+<p id="section-5-9">A token issued under the mission for a resource with no entry
+carries no <code>budget</code> claim and conveys no budgeted access; whatever
+else it conveys is ordinary AAuth authorization, outside this
+document.<a href="#section-5-9" class="pilcrow">¶</a></p>
+<p id="section-5-10">A resource <span class="bcp14">MUST</span> take the cap and mission reference only from a
+verified auth token, never from request content or any other source,
+and <span class="bcp14">MUST</span> reject a request whose <code>AAuth-Mission</code> header differs from
+the token's <code>mission</code> claim.<a href="#section-5-10" class="pilcrow">¶</a></p>
+<p id="section-5-11">Auth tokens remain proof-of-possession and short-lived per AAuth.
 Re-authorization obtains a fresh resource token and repasses the PS
 gate (and the Access Server in federated mode), so a terminated
-mission cannot create new spend authority.<a href="#section-5-8" class="pilcrow">¶</a></p>
+mission cannot create new spend authority.<a href="#section-5-11" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="metering">
@@ -1651,28 +1672,35 @@ plus outstanding reservations never exceed the granted amount; and<a href="#sect
 preserving that invariant.<a href="#section-6-2.5.1" class="pilcrow">¶</a></p>
 </li>
       </ul>
-<p id="section-6-3">For the durable binding above, two <code>budget</code> objects are identical
-when they have the same member names and recursively equal JSON
-values; object member order is irrelevant, array order is significant,
-and strings are compared exactly. A resource <span class="bcp14">MUST NOT</span> replace the
-bound value even with a numerically equivalent or lower amount.<a href="#section-6-3" class="pilcrow">¶</a></p>
-<p id="section-6-4">Before an operation can incur cost, the resource <span class="bcp14">MUST</span> either reserve
-an upper bound for that operation atomically, debit incrementally with
-an atomic check before each chargeable unit, or use another mechanism
-with the same safety property. An operation with no finite cost bound
-<span class="bcp14">MUST</span> be given one, stopped when the remainder is consumed, or refused.
-When a reserved operation completes, the resource atomically commits
-the actual debit and releases the unused reservation. It <span class="bcp14">MUST NOT</span>
-commit more than it reserved.<a href="#section-6-4" class="pilcrow">¶</a></p>
-<p id="section-6-5">A resource <span class="bcp14">MUST</span> restore its ledger after failure without rolling back
-committed debits. When the outcome of an outstanding reservation is
-unknown, it <span class="bcp14">MUST</span> preserve that reservation or otherwise reconcile it
-before admitting work that could exceed the cap.<a href="#section-6-5" class="pilcrow">¶</a></p>
-<p id="section-6-6">A resource <span class="bcp14">SHOULD</span> report each debit in its response and <span class="bcp14">MUST</span> debit
+<p id="section-6-3">Two <code>budget</code> objects are identical when they have the same member
+names and recursively equal JSON values: member order is irrelevant,
+array order is significant, strings compare exactly. A resource <span class="bcp14">MUST NOT</span> replace the bound value even with a numerically equivalent or
+lower amount.<a href="#section-6-3" class="pilcrow">¶</a></p>
+<p id="section-6-4">Before an operation can incur cost, the resource <span class="bcp14">MUST</span> bound it with
+one of:<a href="#section-6-4" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-6-5.1">
+          <p id="section-6-5.1.1">an atomic reservation of the operation's maximum cost;<a href="#section-6-5.1.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-6-5.2">
+          <p id="section-6-5.2.1">an atomic check before each chargeable unit; or<a href="#section-6-5.2.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-6-5.3">
+          <p id="section-6-5.3.1">another mechanism with the same safety property.<a href="#section-6-5.3.1" class="pilcrow">¶</a></p>
+</li>
+      </ul>
+<p id="section-6-6">An operation with no finite cost bound <span class="bcp14">MUST</span> be given one, stopped
+when the remainder is consumed, or refused. When a reserved
+operation completes, the resource atomically commits the actual
+debit — never more than it reserved — and releases the rest.<a href="#section-6-6" class="pilcrow">¶</a></p>
+<p id="section-6-7">After a failure the resource <span class="bcp14">MUST</span> restore its ledger without rolling
+back committed debits, and <span class="bcp14">MUST</span> preserve or reconcile any
+reservation of unknown outcome before admitting work that could
+exceed the cap.<a href="#section-6-7" class="pilcrow">¶</a></p>
+<p id="section-6-8">A resource <span class="bcp14">SHOULD</span> report each debit in its response and <span class="bcp14">MUST</span> debit
 exactly once per chargeable operation it serves. Retry, idempotency,
 partial-response, and rounding semantics are API surface, pinned by
-profiles. None of those semantics may violate the accounting
-invariant.<a href="#section-6-6" class="pilcrow">¶</a></p>
+profiles; none of them may violate the accounting invariant.<a href="#section-6-8" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="state">
@@ -1727,15 +1755,24 @@ amount can be zero.<a href="#section-7-4.6.1" class="pilcrow">¶</a></p>
 </dd>
       <dd class="break"></dd>
 </dl>
-<p id="section-7-5">A budget with no debits yet reports zero <code>spent</code>. The response <span class="bcp14">MUST</span>
-be an internally consistent snapshot, <span class="bcp14">MUST</span> include every debit
-committed before that snapshot, and <span class="bcp14">MUST</span> never report <code>spent</code> greater
-than <code>budget</code>. Outstanding reservations are not included in <code>spent</code>.<a href="#section-7-5" class="pilcrow">¶</a></p>
-<p id="section-7-6">The response <span class="bcp14">MUST</span> include <code>Cache-Control: no-store</code> and <span class="bcp14">MUST NOT</span>
-include <code>sub</code> or any other identity claim. Agents <span class="bcp14">SHOULD</span> read it
+<p id="section-7-5">The response:<a href="#section-7-5" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-7-6.1">
+          <p id="section-7-6.1.1"><span class="bcp14">MUST</span> be an internally consistent snapshot including every debit
+committed before it, with <code>spent</code> excluding outstanding
+reservations and never exceeding <code>budget</code>;<a href="#section-7-6.1.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-7-6.2">
+          <p id="section-7-6.2.1"><span class="bcp14">MUST</span> carry <code>Cache-Control: no-store</code>; and<a href="#section-7-6.2.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-7-6.3">
+          <p id="section-7-6.3.1"><span class="bcp14">MUST NOT</span> include <code>sub</code> or any other identity claim.<a href="#section-7-6.3.1" class="pilcrow">¶</a></p>
+</li>
+      </ul>
+<p id="section-7-7">The endpoint is advisory: concurrent work can consume the reported
+remainder immediately after the snapshot. Agents <span class="bcp14">SHOULD</span> read it
 before starting work whose cost is significant relative to the
-remainder. The endpoint is advisory: concurrent work can consume the
-reported remainder immediately after the snapshot.<a href="#section-7-6" class="pilcrow">¶</a></p>
+remainder.<a href="#section-7-7" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="exhaustion">
@@ -1756,11 +1793,10 @@ request with HTTP status 402 and the error code <code>budget_exhausted</code>:<a
 </pre><a href="#section-8-2" class="pilcrow">¶</a>
 </div>
 <p id="section-8-3">The body shown is AAuth's flat error shape; a profile <span class="bcp14">MAY</span> pin its
-API's native error carriage instead. The refusal <span class="bcp14">MUST NOT</span> itself
-create a debit. The code means that the remaining budget is
-insufficient for this request. An agent <span class="bcp14">MAY</span> retry an operation with a
-smaller finite cost bound when the API permits; increasing the cap
-requires a new mission.<a href="#section-8-3" class="pilcrow">¶</a></p>
+API's native error carriage instead. The code means the remaining
+budget is insufficient for this request; the refusal <span class="bcp14">MUST NOT</span> itself
+create a debit. An agent <span class="bcp14">MAY</span> retry with a smaller finite cost bound
+when the API permits; increasing the cap requires a new mission.<a href="#section-8-3" class="pilcrow">¶</a></p>
 <p id="section-8-4">Payment failures outside the cap (an empty prepaid balance, a failed
 settlement) belong to the resource's payment relationship with the
 person. They are signaled with status 402 per AAuth and named by the
