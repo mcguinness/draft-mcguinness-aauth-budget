@@ -1227,10 +1227,13 @@ member, and one error code, and no new protocol.<a href="#section-abstract-1" cl
             </ul>
 </li>
           <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.14">
-            <p id="section-toc.1-1.14.1"><a href="#appendix-A" class="auto internal xref"></a><a href="#name-acknowledgments" class="internal xref">Acknowledgments</a></p>
+            <p id="section-toc.1-1.14.1"><a href="#appendix-A" class="auto internal xref">Appendix A</a>.  <a href="#name-complete-protocol-exchange" class="internal xref">Complete Protocol Exchange</a></p>
 </li>
           <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.15">
-            <p id="section-toc.1-1.15.1"><a href="#appendix-B" class="auto internal xref"></a><a href="#name-authors-address" class="internal xref">Author's Address</a></p>
+            <p id="section-toc.1-1.15.1"><a href="#appendix-B" class="auto internal xref"></a><a href="#name-acknowledgments" class="internal xref">Acknowledgments</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.16">
+            <p id="section-toc.1-1.16.1"><a href="#appendix-C" class="auto internal xref"></a><a href="#name-authors-address" class="internal xref">Author's Address</a></p>
 </li>
         </ul>
 </nav>
@@ -1348,13 +1351,12 @@ agent behavior across resources.<a href="#section-3-3.1.1" class="pilcrow">¶</a
 </li>
         <li class="normal" id="section-3-3.2">
           <p id="section-3-3.2.1">Cross-resource aggregate spend, call-count caps, and duration caps
-are governance-layer consumption bounds with distributed-counting
-machinery of their own, and are out of scope. Mission governance
-profiles for AAuth Person Servers address that layer
-(<span>[<a href="#I-D.draft-mcguinness-mission-aauth" class="cite xref">I-D.draft-mcguinness-mission-aauth</a>]</span>,
-<span>[<a href="#I-D.draft-mcguinness-mission-metering" class="cite xref">I-D.draft-mcguinness-mission-metering</a>]</span>); this extension
-requires none of them and composes with them unchanged, since
-<code>budgets</code> is an ordinary blob member committed under <code>s256</code>.<a href="#section-3-3.2.1" class="pilcrow">¶</a></p>
+are governance-layer consumption bounds: metering them exactly
+across decision points is a distributed-counting problem with
+reserve, commit, and settlement machinery of its own, and is out
+of scope. Governance profiles that meter at a policy decision
+point compose with this extension unchanged, since <code>budgets</code> is an
+ordinary blob member committed under <code>s256</code>.<a href="#section-3-3.2.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-3-3.3">
           <p id="section-3-3.3.1">Non-monetary quantity caps are out of scope. Budgets are money:
@@ -1404,11 +1406,14 @@ cumulative spend.<a href="#section-4-4.4.1" class="pilcrow">¶</a></p>
 </dd>
       <dd class="break"></dd>
 </dl>
-<p id="section-4-5">A profile <span class="bcp14">MAY</span> add members to an entry. Consumers fail closed: a
+<p id="section-4-5">A mission <span class="bcp14">MAY</span> carry entries for several resources; each entry is
+independent. The proposal is a request, never authority: the granted
+values exist only in the approved blob.<a href="#section-4-5" class="pilcrow">¶</a></p>
+<p id="section-4-6">A profile <span class="bcp14">MAY</span> add members to an entry. Consumers fail closed: a
 Person Server <span class="bcp14">MUST</span> reject a proposal whose <code>budgets</code> entries carry
 members it does not recognize or values it cannot render for
 consent, and a resource <span class="bcp14">MUST</span> refuse budgeted access it cannot fully
-enforce (<a href="#claim" class="auto internal xref">Section 5</a>).<a href="#section-4-5" class="pilcrow">¶</a></p>
+enforce (<a href="#claim" class="auto internal xref">Section 5</a>).<a href="#section-4-6" class="pilcrow">¶</a></p>
 <div id="consent">
 <section id="section-4.1">
         <h3 id="name-consent">
@@ -1433,9 +1438,10 @@ the amounts it asks the person to approve.<a href="#section-4.1-2" class="pilcro
 <p id="section-4.2-1">The blob is immutable under <code>s256</code>, so a budget cannot be raised in
 place. A top-off is a new mission proposal; the person decides.
 AAuth's permission endpoint is not used for budget changes, because
-the cap is committed under <code>s256</code>. When a budget is spent or the
-task is done, the agent <span class="bcp14">SHOULD</span> propose completion with a summary
-that includes total spend.<a href="#section-4.2-1" class="pilcrow">¶</a></p>
+the cap is committed under <code>s256</code>. A budget has no lifetime of its
+own: it ends with the mission. When a budget is spent or the task is
+done, the agent <span class="bcp14">SHOULD</span> propose completion with a summary that
+includes total spend.<a href="#section-4.2-1" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="example">
@@ -1476,7 +1482,8 @@ AAuth-Mission: approver="https://ps.example";
 </div>
 <p id="section-4.3-5">The reference is covered by the HTTP Message Signature <span>[<a href="#RFC9421" class="cite xref">RFC9421</a>]</span>
 on every request that carries it, per AAuth, so the cap the person
-approved is bound to every call made under it.<a href="#section-4.3-5" class="pilcrow">¶</a></p>
+approved is bound to every call made under it. <a href="#e2e" class="auto internal xref">Appendix A</a> walks this
+grant end to end.<a href="#section-4.3-5" class="pilcrow">¶</a></p>
 </section>
 </div>
 </section>
@@ -1523,16 +1530,21 @@ dereferences the blob, so the cap travels in the token and the
 resource needs no call to the PS.<a href="#section-5-3.2.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-5-3.3">
-          <p id="section-5-3.3.1">Before issuing, the PS <span class="bcp14">MUST</span> verify that the mission is active and
-that the resource token's issuer matches a granted entry's
-<code>resource</code>. In AAuth's federated mode the PS conveys the granted
-entry in its federation request, and the Access Server <span class="bcp14">MUST</span> copy
-it into the auth token it mints.<a href="#section-5-3.3.1" class="pilcrow">¶</a></p>
+          <p id="section-5-3.3.1">Before issuing a token that carries a <code>budget</code> claim, the PS <span class="bcp14">MUST</span>
+verify that the mission is active and that the resource token's
+issuer equals the entry's <code>resource</code>. In AAuth's federated mode
+the PS conveys the granted entry in its federation request, and
+the Access Server <span class="bcp14">MUST</span> copy it into the auth token it mints.<a href="#section-5-3.3.1" class="pilcrow">¶</a></p>
 </li>
       </ul>
-<p id="section-5-4">Auth tokens remain proof-of-possession and short-lived per AAuth, so
+<p id="section-5-4">A token issued under the mission for a resource with no entry
+carries no <code>budget</code> claim and conveys no budgeted access; whatever
+else it conveys is ordinary AAuth authorization, outside this
+document. A resource <span class="bcp14">MUST</span> take the cap only from a verified auth
+token, never from request content or any other source.<a href="#section-5-4" class="pilcrow">¶</a></p>
+<p id="section-5-5">Auth tokens remain proof-of-possession and short-lived per AAuth, so
 every renewal repasses the PS gate: a revoked mission stops new
-spend authority within one auth-token lifetime.<a href="#section-5-4" class="pilcrow">¶</a></p>
+spend authority within one auth-token lifetime.<a href="#section-5-5" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="metering">
@@ -1561,8 +1573,10 @@ granted amount.<a href="#section-6-2.3.1" class="pilcrow">¶</a></p>
 refused up front. Exact concurrency control (reserve and commit) is
 out of scope: a resource that admits requests concurrently accepts a
 race bounded by the cost of requests in flight, or refuses up front.<a href="#section-6-3" class="pilcrow">¶</a></p>
-<p id="section-6-4">A resource <span class="bcp14">SHOULD</span> report each debit in its response; the carriage is
-API surface, pinned by profiles.<a href="#section-6-4" class="pilcrow">¶</a></p>
+<p id="section-6-4">A resource <span class="bcp14">SHOULD</span> report each debit in its response and <span class="bcp14">MUST</span> debit
+once per served response; retry and idempotency semantics are API
+surface, pinned by profiles, as is rounding in unit conversion. The
+committed amount remains the bound under both.<a href="#section-6-4" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="state">
@@ -1589,7 +1603,8 @@ the presented mission reference:<a href="#section-7-1" class="pilcrow">¶</a></p
 <code>active</code>:</dt>
         <dd style="margin-left: 1.5em" id="section-7-3.2">
           <p id="section-7-3.2.1"><span class="bcp14">REQUIRED</span>. A boolean. Whether the resource still serves budgeted
-requests under this mission.<a href="#section-7-3.2.1" class="pilcrow">¶</a></p>
+requests under this mission: <code>false</code> once the cap is reached or
+the resource has otherwise stopped serving the grant.<a href="#section-7-3.2.1" class="pilcrow">¶</a></p>
 </dd>
         <dd class="break"></dd>
 <dt id="section-7-3.3">
@@ -1607,9 +1622,11 @@ budget is the difference.<a href="#section-7-3.6.1" class="pilcrow">¶</a></p>
 </dd>
       <dd class="break"></dd>
 </dl>
-<p id="section-7-4">The response <span class="bcp14">MUST NOT</span> include <code>sub</code> or any other identity claim.
+<p id="section-7-4">A budget with no debits yet reports zero <code>spent</code>. The response <span class="bcp14">MUST</span>
+reflect every debit committed at the time it is produced.<a href="#section-7-4" class="pilcrow">¶</a></p>
+<p id="section-7-5">The response <span class="bcp14">MUST NOT</span> include <code>sub</code> or any other identity claim.
 Agents <span class="bcp14">SHOULD</span> read it before starting work whose cost is significant
-relative to the remainder.<a href="#section-7-4" class="pilcrow">¶</a></p>
+relative to the remainder.<a href="#section-7-5" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="exhaustion">
@@ -1670,12 +1687,17 @@ and<a href="#section-9-3.3.1" class="pilcrow">¶</a></p>
 approved blob (<a href="#consent" class="auto internal xref">Section 4.1</a>);<a href="#section-9-5.1.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-9-5.2">
-          <p id="section-9-5.2.1">carries the mission reference on every request under the grant,
-signature-covered, per AAuth; and<a href="#section-9-5.2.1" class="pilcrow">¶</a></p>
+          <p id="section-9-5.2.1">verifies that the approved blob carries a <code>budgets</code> member before
+treating the grant as budgeted: a PS that does not implement this
+extension may approve the mission without one;<a href="#section-9-5.2.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-9-5.3">
-          <p id="section-9-5.3.1">stops spending against an exhausted budget: recovery is a new
-mission, decided by the person (<a href="#immutability" class="auto internal xref">Section 4.2</a>).<a href="#section-9-5.3.1" class="pilcrow">¶</a></p>
+          <p id="section-9-5.3.1">carries the mission reference on every request under the grant,
+signature-covered, per AAuth; and<a href="#section-9-5.3.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-9-5.4">
+          <p id="section-9-5.4.1">stops spending against an exhausted budget: recovery is a new
+mission, decided by the person (<a href="#immutability" class="auto internal xref">Section 4.2</a>).<a href="#section-9-5.4.1" class="pilcrow">¶</a></p>
 </li>
       </ul>
 <p id="section-9-6">A <strong>Person Server</strong>:<a href="#section-9-6" class="pilcrow">¶</a></p>
@@ -1688,8 +1710,9 @@ amounts;<a href="#section-9-7.1.1" class="pilcrow">¶</a></p>
           <p id="section-9-7.2.1">returns the granted entries in the approved blob;<a href="#section-9-7.2.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-9-7.3">
-          <p id="section-9-7.3.1">gates issuance on mission state and on the resource matching a
-granted entry (<a href="#claim" class="auto internal xref">Section 5</a>); and<a href="#section-9-7.3.1" class="pilcrow">¶</a></p>
+          <p id="section-9-7.3.1">issues a token carrying a <code>budget</code> claim only while the mission is
+active and only where the token audience equals the entry's
+<code>resource</code> (<a href="#claim" class="auto internal xref">Section 5</a>); and<a href="#section-9-7.3.1" class="pilcrow">¶</a></p>
 </li>
         <li class="normal" id="section-9-7.4">
           <p id="section-9-7.4.1">carries the <code>budget</code> claim in auth tokens it issues, or conveys
@@ -1796,14 +1819,6 @@ defines would be registered there.<a href="#section-12-1" class="pilcrow">¶</a>
         <dd>
 <span class="refAuthor">McGuinness, K.</span>, <span class="refTitle">"TPX-A: An AAuth Profile for Metered LLM Inference Grants"</span>, <time datetime="2026" class="refDate">2026</time>, <span>&lt;<a href="https://mcguinness.github.io/draft-mcguinness-aauth-budget/draft-mcguinness-aauth-budget-tpx.html">https://mcguinness.github.io/draft-mcguinness-aauth-budget/draft-mcguinness-aauth-budget-tpx.html</a>&gt;</span>. </dd>
 <dd class="break"></dd>
-<dt id="I-D.draft-mcguinness-mission-aauth">[I-D.draft-mcguinness-mission-aauth]</dt>
-        <dd>
-<span class="refAuthor">McGuinness, K.</span>, <span class="refTitle">"Mission-Bound Authorization for AAuth"</span>, <time datetime="2026" class="refDate">2026</time>, <span>&lt;<a href="https://mcguinness.github.io/mission-bound-authorization/draft-mcguinness-mission-aauth.html">https://mcguinness.github.io/mission-bound-authorization/draft-mcguinness-mission-aauth.html</a>&gt;</span>. </dd>
-<dd class="break"></dd>
-<dt id="I-D.draft-mcguinness-mission-metering">[I-D.draft-mcguinness-mission-metering]</dt>
-        <dd>
-<span class="refAuthor">McGuinness, K.</span>, <span class="refTitle">"Mission Consumption Metering"</span>, <time datetime="2026" class="refDate">2026</time>, <span>&lt;<a href="https://mcguinness.github.io/mission-bound-authorization/draft-mcguinness-mission-metering.html">https://mcguinness.github.io/mission-bound-authorization/draft-mcguinness-mission-metering.html</a>&gt;</span>. </dd>
-<dd class="break"></dd>
 <dt id="RFC9421">[RFC9421]</dt>
         <dd>
 <span class="refAuthor">Backman, A., Ed.</span>, <span class="refAuthor">Richer, J., Ed.</span>, and <span class="refAuthor">M. Sporny</span>, <span class="refTitle">"HTTP Message Signatures"</span>, <span class="seriesInfo">RFC 9421</span>, <span class="seriesInfo">DOI 10.17487/RFC9421</span>, <time datetime="2024-02" class="refDate">February 2024</time>, <span>&lt;<a href="https://www.rfc-editor.org/rfc/rfc9421">https://www.rfc-editor.org/rfc/rfc9421</a>&gt;</span>. </dd>
@@ -1817,20 +1832,263 @@ defines would be registered there.<a href="#section-12-1" class="pilcrow">¶</a>
 </div>
 </section>
 </div>
-<div id="acknowledgments">
+<div id="e2e">
 <section id="appendix-A">
+      <h2 id="name-complete-protocol-exchange">
+<a href="#appendix-A" class="section-number selfRef">Appendix A. </a><a href="#name-complete-protocol-exchange" class="section-name selfRef">Complete Protocol Exchange</a>
+      </h2>
+<p id="appendix-A-1">This appendix is non-normative. It walks the digest agent of
+<a href="#example" class="auto internal xref">Section 4.3</a> through one full grant: proposal, approval, challenge,
+issuance, spend, state, exhaustion, and completion. JWTs are
+abbreviated, signatures are elided, and AAuth's interaction
+machinery is reduced to its shape; AAuth's own examples govern the
+substrate details. Later messages also elide <code>Signature-Input</code> and
+<code>Signature</code>; every request remains signed as the first ones show.<a href="#appendix-A-1" class="pilcrow">¶</a></p>
+<p id="appendix-A-2">The agent <code>aauth:scout@agents.example</code> proposes a mission at the
+person's PS, asking for a $5.00 cap:<a href="#appendix-A-2" class="pilcrow">¶</a></p>
+<div class="lang-http-message sourcecode" id="appendix-A-3">
+<pre>
+POST /mission HTTP/1.1
+Host: ps.example
+Content-Type: application/json
+Signature-Input: sig=("@method" "@authority" "@path"
+    "signature-key");created=1784365200
+Signature: sig=:...:
+Signature-Key: sig=jwt;jwt="eyJ..agent-token.."
+
+{
+  "description":
+    "Compile a daily digest of Doppler launch coverage this week.",
+  "tools": [
+    { "name": "search.query",
+      "description": "Web search at api.search.example" }
+  ],
+  "budgets": [
+    { "resource": "https://api.search.example",
+      "amount": "5.00",
+      "currency": "USD" }
+  ]
+}
+</pre><a href="#appendix-A-3" class="pilcrow">¶</a>
+</div>
+<p id="appendix-A-4">Review is asynchronous; the PS defers while the person looks:<a href="#appendix-A-4" class="pilcrow">¶</a></p>
+<div class="lang-http-message sourcecode" id="appendix-A-5">
+<pre>
+HTTP/1.1 202 Accepted
+Location: https://ps.example/pending/m7Qk
+Retry-After: 5
+Content-Type: application/json
+
+{ "status": "pending" }
+</pre><a href="#appendix-A-5" class="pilcrow">¶</a>
+</div>
+<p id="appendix-A-6">The person approves at a lower cap, $2.00. Polling the pending URL
+now returns the approved mission: the blob of <a href="#example" class="auto internal xref">Section 4.3</a>, byte for
+byte, with its reference in the response header:<a href="#appendix-A-6" class="pilcrow">¶</a></p>
+<div class="lang-http-message sourcecode" id="appendix-A-7">
+<pre>
+HTTP/1.1 200 OK
+AAuth-Mission: approver="https://ps.example";
+    s256="q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+Content-Type: application/json
+
+{
+  "approver": "https://ps.example",
+  "agent": "aauth:scout@agents.example",
+  "approved_at": "2026-07-18T09:05:42Z",
+  ...
+  "budgets": [
+    { "resource": "https://api.search.example",
+      "amount": "2.00",
+      "currency": "USD" }
+  ]
+}
+</pre><a href="#appendix-A-7" class="pilcrow">¶</a>
+</div>
+<p id="appendix-A-8">The agent reads the granted cap from the blob: it asked for $5.00
+and holds $2.00. It stores the bytes exactly as received and turns
+to the resource. The first request is signed with its agent token
+and carries the mission reference; the resource answers with the
+challenge and a resource token:<a href="#appendix-A-8" class="pilcrow">¶</a></p>
+<div class="lang-http-message sourcecode" id="appendix-A-9">
+<pre>
+GET /search?q=doppler+launch HTTP/1.1
+Host: api.search.example
+AAuth-Mission: approver="https://ps.example";
+    s256="q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+Signature-Input: sig=("@method" "@authority" "@path"
+    "signature-key" "aauth-mission");created=1784386740
+Signature: sig=:...:
+Signature-Key: sig=jwt;jwt="eyJ..agent-token.."
+</pre><a href="#appendix-A-9" class="pilcrow">¶</a>
+</div>
+<div class="lang-http-message sourcecode" id="appendix-A-10">
+<pre>
+HTTP/1.1 401 Unauthorized
+AAuth-Requirement: requirement=auth-token;
+    resource-token="eyJ..resource-token.."
+</pre><a href="#appendix-A-10" class="pilcrow">¶</a>
+</div>
+<p id="appendix-A-11">The resource token names the agent and copies the mission reference
+from the header. Its payload:<a href="#appendix-A-11" class="pilcrow">¶</a></p>
+<div class="lang-json sourcecode" id="appendix-A-12">
+<pre>
+{
+  "iss": "https://api.search.example",
+  "dwk": "aauth-resource.json",
+  "aud": "https://ps.example",
+  "agent": "aauth:scout@agents.example",
+  "agent_jkt": "kV9CqXP3...",
+  "scope": "search",
+  "mission": {
+    "approver": "https://ps.example",
+    "s256": "q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+  },
+  "jti": "rt_3Fq9xWv2",
+  "iat": 1784386740,
+  "exp": 1784387040
+}
+</pre><a href="#appendix-A-12" class="pilcrow">¶</a>
+</div>
+<p id="appendix-A-13">The agent exchanges it at the PS. The mission is active and the
+resource token's issuer equals the entry's <code>resource</code>, so the PS
+issues the auth token of <a href="#claim" class="auto internal xref">Section 5</a>, <code>budget</code> claim and all:<a href="#appendix-A-13" class="pilcrow">¶</a></p>
+<div class="lang-http-message sourcecode" id="appendix-A-14">
+<pre>
+POST /token HTTP/1.1
+Host: ps.example
+Content-Type: application/json
+AAuth-Mission: approver="https://ps.example";
+    s256="q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+Signature-Input: sig=("@method" "@authority" "@path"
+    "signature-key" "aauth-mission");created=1784386790
+Signature: sig=:...:
+Signature-Key: sig=jwt;jwt="eyJ..agent-token.."
+
+{
+  "resource_token": "eyJ..resource-token..",
+  "justification": "Search for today's launch coverage."
+}
+</pre><a href="#appendix-A-14" class="pilcrow">¶</a>
+</div>
+<div class="lang-http-message sourcecode" id="appendix-A-15">
+<pre>
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{ "auth_token": "eyJ..auth-token..", "expires_in": 3600 }
+</pre><a href="#appendix-A-15" class="pilcrow">¶</a>
+</div>
+<p id="appendix-A-16">The agent retries the search, now signed with the key the auth
+token's <code>cnf.jwk</code> names. The resource verifies token, signature,
+and reference equality, serves, and debits the grant, reporting the
+debit in its own carriage (illustrative here; profiles pin it):<a href="#appendix-A-16" class="pilcrow">¶</a></p>
+<div class="lang-http-message sourcecode" id="appendix-A-17">
+<pre>
+GET /search?q=doppler+launch HTTP/1.1
+Host: api.search.example
+AAuth-Mission: approver="https://ps.example";
+    s256="q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+Signature-Key: sig=jwt;jwt="eyJ..auth-token.."
+</pre><a href="#appendix-A-17" class="pilcrow">¶</a>
+</div>
+<div class="lang-http-message sourcecode" id="appendix-A-18">
+<pre>
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "results": [ "..." ],
+  "debit": { "amount": "0.01", "currency": "USD" }
+}
+</pre><a href="#appendix-A-18" class="pilcrow">¶</a>
+</div>
+<p id="appendix-A-19">Three days in, each hour's auth token re-obtained through the same
+exchange, the agent checks the meter before a deeper crawl, at the
+endpoint the resource metadata names in <code>budget_endpoint</code>:<a href="#appendix-A-19" class="pilcrow">¶</a></p>
+<div class="lang-http-message sourcecode" id="appendix-A-20">
+<pre>
+GET /budget HTTP/1.1
+Host: api.search.example
+AAuth-Mission: approver="https://ps.example";
+    s256="q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+Signature-Key: sig=jwt;jwt="eyJ..auth-token.."
+</pre><a href="#appendix-A-20" class="pilcrow">¶</a>
+</div>
+<div class="lang-http-message sourcecode" id="appendix-A-21">
+<pre>
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "active": true,
+  "budget": { "amount": "2.00", "currency": "USD" },
+  "spent": { "amount": "0.31", "currency": "USD" }
+}
+</pre><a href="#appendix-A-21" class="pilcrow">¶</a>
+</div>
+<p id="appendix-A-22">The digest keeps running. When cumulative debits reach the cap, the
+next request fails closed:<a href="#appendix-A-22" class="pilcrow">¶</a></p>
+<div class="lang-http-message sourcecode" id="appendix-A-23">
+<pre>
+HTTP/1.1 402 Payment Required
+Content-Type: application/json
+
+{
+  "error": "budget_exhausted",
+  "error_description":
+    "The mission's budget at this resource is spent."
+}
+</pre><a href="#appendix-A-23" class="pilcrow">¶</a>
+</div>
+<p id="appendix-A-24">The week is over and the task is done, so instead of proposing a
+top-off mission the agent proposes completion, spend in the summary:<a href="#appendix-A-24" class="pilcrow">¶</a></p>
+<div class="lang-http-message sourcecode" id="appendix-A-25">
+<pre>
+POST /interaction HTTP/1.1
+Host: ps.example
+Content-Type: application/json
+AAuth-Mission: approver="https://ps.example";
+    s256="q2H2TTOaLlx16UWrc-h6TeSJFs31pfshIB_CqW0Rpl0"
+Signature-Key: sig=jwt;jwt="eyJ..agent-token.."
+
+{
+  "type": "completion",
+  "summary":
+    "Week's digest complete. Spent $2.00 of the $2.00 budget."
+}
+</pre><a href="#appendix-A-25" class="pilcrow">¶</a>
+</div>
+<p id="appendix-A-26">The person accepts; the PS terminates the mission. Any later token
+request under the reference fails closed:<a href="#appendix-A-26" class="pilcrow">¶</a></p>
+<div class="lang-json sourcecode" id="appendix-A-27">
+<pre>
+{
+  "error": "mission_terminated",
+  "error_description": "This mission has ended."
+}
+</pre><a href="#appendix-A-27" class="pilcrow">¶</a>
+</div>
+<p id="appendix-A-28">Every message above rides AAuth surfaces unchanged. The extension's
+whole footprint is the <code>budgets</code> member proposed and granted, the
+<code>budget</code> claim issued, the meter and its endpoint at the resource,
+and the 402 that ends the spending.<a href="#appendix-A-28" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="acknowledgments">
+<section id="appendix-B">
       <h2 id="name-acknowledgments">
 <a href="#name-acknowledgments" class="section-name selfRef">Acknowledgments</a>
       </h2>
-<p id="appendix-A-1">This extension generalizes the budget mechanism of the Token Pony
+<p id="appendix-B-1">This extension generalizes the budget mechanism of the Token Pony
 Express <span>[<a href="#TPX" class="cite xref">TPX</a>]</span>, which demonstrated the budget-as-grant pattern as an
 OAuth 2.0 profile, onto AAuth's mission substrate. TPX-A
 (<span>[<a href="#I-D.draft-mcguinness-aauth-budget-tpx" class="cite xref">I-D.draft-mcguinness-aauth-budget-tpx</a>]</span>) profiles this document
-back onto that use case.<a href="#appendix-A-1" class="pilcrow">¶</a></p>
+back onto that use case.<a href="#appendix-B-1" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="authors-addresses">
-<section id="appendix-B">
+<section id="appendix-C">
       <h2 id="name-authors-address">
 <a href="#name-authors-address" class="section-name selfRef">Author's Address</a>
       </h2>

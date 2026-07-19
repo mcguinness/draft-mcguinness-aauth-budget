@@ -14,8 +14,8 @@ directly. TPX v0.2 is an OAuth 2.0 profile of that pattern. This
 document, TPX-A, is its AAuth-native sibling: the application is an
 agent with its own cryptographic identity, consent happens at the
 person's Person Server, and the grant is an approved AAuth mission
-carrying a Budgeted Missions for AAuth cap. TPX-A pins what that
-extension leaves to profiles: the credit as the published pricing
+carrying a budget defined by Budgeted Missions for AAuth. TPX-A pins
+what that extension leaves to profiles: the credit as the published pricing
 unit, a model restriction, the OpenAI-compatible inference API
 surface with its usage-accounting member, the balance model, and
 identity minimization. 
@@ -1102,8 +1102,8 @@ directly. TPX v0.2 is an OAuth 2.0 profile of that pattern. This
 document, TPX-A, is its AAuth-native sibling: the application is an
 agent with its own cryptographic identity, consent happens at the
 person's Person Server, and the grant is an approved AAuth mission
-carrying a Budgeted Missions for AAuth cap. TPX-A pins what that
-extension leaves to profiles: the credit as the published pricing
+carrying a budget defined by Budgeted Missions for AAuth. TPX-A pins
+what that extension leaves to profiles: the credit as the published pricing
 unit, a model restriction, the OpenAI-compatible inference API
 surface with its usage-accounting member, the balance model, and
 identity minimization.<a href="#section-abstract-1" class="pilcrow">¶</a></p>
@@ -1246,10 +1246,13 @@ identity minimization.<a href="#section-abstract-1" class="pilcrow">¶</a></p>
             <p id="section-toc.1-1.16.1"><a href="#appendix-A" class="auto internal xref">Appendix A</a>.  <a href="#name-mapping-from-tpx-v02" class="internal xref">Mapping from TPX v0.2</a></p>
 </li>
           <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.17">
-            <p id="section-toc.1-1.17.1"><a href="#appendix-B" class="auto internal xref"></a><a href="#name-acknowledgments" class="internal xref">Acknowledgments</a></p>
+            <p id="section-toc.1-1.17.1"><a href="#appendix-B" class="auto internal xref">Appendix B</a>.  <a href="#name-complete-protocol-exchange" class="internal xref">Complete Protocol Exchange</a></p>
 </li>
           <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.18">
-            <p id="section-toc.1-1.18.1"><a href="#appendix-C" class="auto internal xref"></a><a href="#name-authors-address" class="internal xref">Author's Address</a></p>
+            <p id="section-toc.1-1.18.1"><a href="#appendix-C" class="auto internal xref"></a><a href="#name-acknowledgments" class="internal xref">Acknowledgments</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.19">
+            <p id="section-toc.1-1.19.1"><a href="#appendix-D" class="auto internal xref"></a><a href="#name-authors-address" class="internal xref">Author's Address</a></p>
 </li>
         </ul>
 </nav>
@@ -1519,6 +1522,9 @@ Signature-Key: sig=jwt;jwt="&lt;auth token&gt;"
 the auth token's <code>cnf.jwk</code>, the token per AAuth, and the header's
 mission reference against the token's <code>mission</code> claim. A model
 outside the granted restriction is refused.<a href="#section-7.1-3" class="pilcrow">¶</a></p>
+<p id="section-7.1-4">All inference access is budgeted: the provider <span class="bcp14">MUST</span> refuse an
+inference request whose auth token carries no <code>budget</code> claim, per
+AAuth-Budget's fail-closed rule.<a href="#section-7.1-4" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="api-endpoints">
@@ -1529,7 +1535,8 @@ outside the granted restriction is refused.<a href="#section-7.1-3" class="pilcr
 <p id="section-7.2-1">Relative to the resource identifier:<a href="#section-7.2-1" class="pilcrow">¶</a></p>
 <ul class="normal">
 <li class="normal" id="section-7.2-2.1">
-            <p id="section-7.2-2.1.1"><code>GET /models</code>: available models with per-token rates in credits.<a href="#section-7.2-2.1.1" class="pilcrow">¶</a></p>
+            <p id="section-7.2-2.1.1"><code>GET /models</code>: available models with per-token rates in credits.
+It <span class="bcp14">MAY</span> be served without authentication.<a href="#section-7.2-2.1.1" class="pilcrow">¶</a></p>
 </li>
           <li class="normal" id="section-7.2-2.2">
             <p id="section-7.2-2.2.1"><code>GET /grant</code>: the AAuth-Budget budget-state endpoint
@@ -1556,16 +1563,17 @@ reported in the usage object:<a href="#section-7.3-1" class="pilcrow">¶</a></p>
 <pre>
 "usage": {
   "prompt_tokens": 812,
-  "cached_tokens": 256,
+  "cached_tokens": 192,
   "completion_tokens": 214,
   "credits_charged": 1930
 }
 </pre><a href="#section-7.3-2" class="pilcrow">¶</a>
 </div>
 <p id="section-7.3-3"><code>credits_charged</code> is the TPX usage-accounting member, unchanged from
-TPX v0.2: the total credits debited for the request. Streaming
-responses report <code>usage</code>, including <code>credits_charged</code>, in the final
-SSE chunk.<a href="#section-7.3-3" class="pilcrow">¶</a></p>
+TPX v0.2: the total credits debited for the request, an integer.
+Debits are whole credits, so the currency view is exact to six
+decimal places. Streaming responses report <code>usage</code>, including
+<code>credits_charged</code>, in the final SSE chunk.<a href="#section-7.3-3" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="api-grant">
@@ -1784,10 +1792,11 @@ $0.10 and holds $0.05. An auth token issued under the mission:<a href="#section-
 </pre><a href="#section-10-6" class="pilcrow">¶</a>
 </div>
 <p id="section-10-7">The <code>budget</code> claim is the granted entry, verbatim, per AAuth-Budget;
-the provider learns the cap from the token and calls no one. After
-41250 credits of chat, <code>GET /grant</code> returns the state shown in
-<a href="#api-grant" class="auto internal xref">Section 7.4</a>, and a request that would exceed the remainder fails
-with <code>budget_exhausted</code> (<a href="#api-errors" class="auto internal xref">Section 7.5</a>).<a href="#section-10-7" class="pilcrow">¶</a></p>
+the provider learns the cap from the token and needs no call to the
+PS. After 41250 credits of chat, <code>GET /grant</code> returns the state
+shown in <a href="#api-grant" class="auto internal xref">Section 7.4</a>, and a request that would exceed the
+remainder fails with <code>budget_exhausted</code> (<a href="#api-errors" class="auto internal xref">Section 7.5</a>). <a href="#e2e" class="auto internal xref">Appendix B</a>
+walks the full exchange.<a href="#section-10-7" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="conformance">
@@ -2029,18 +2038,295 @@ API-surface error code.<a href="#section-14-1" class="pilcrow">¶</a></p>
       </table>
 </section>
 </div>
-<div id="acknowledgments">
+<div id="e2e">
 <section id="appendix-B">
+      <h2 id="name-complete-protocol-exchange">
+<a href="#appendix-B" class="section-number selfRef">Appendix B. </a><a href="#name-complete-protocol-exchange" class="section-name selfRef">Complete Protocol Exchange</a>
+      </h2>
+<p id="appendix-B-1">This appendix is non-normative. It walks Pony Chat through one full
+grant: rates, proposal, approval, challenge, issuance, inference,
+state, exhaustion, and completion. JWTs are abbreviated, signatures
+are elided, and AAuth's interaction machinery is reduced to its
+shape; AAuth's own examples govern the substrate details. Later
+messages also elide <code>Signature-Input</code> and <code>Signature</code>; every request
+remains signed as the first ones show.<a href="#appendix-B-1" class="pilcrow">¶</a></p>
+<p id="appendix-B-2">Anyone can read the menu. The provider's rates, in credits per
+token:<a href="#appendix-B-2" class="pilcrow">¶</a></p>
+<div class="lang-http-message sourcecode" id="appendix-B-3">
+<pre>
+GET /models HTTP/1.1
+Host: api.tokenpony.dev
+</pre><a href="#appendix-B-3" class="pilcrow">¶</a>
+</div>
+<div class="lang-http-message sourcecode" id="appendix-B-4">
+<pre>
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "models": [
+    { "id": "pony-8b",
+      "credits_per_token":
+        { "input": 1, "cached_input": 0.25, "output": 5 } },
+    { "id": "pony-70b",
+      "credits_per_token":
+        { "input": 4, "cached_input": 1, "output": 20 } }
+  ]
+}
+</pre><a href="#appendix-B-4" class="pilcrow">¶</a>
+</div>
+<p id="appendix-B-5">The agent <code>aauth:pony-chat@ponychat.tokenpony.dev</code> proposes a
+mission at the person's PS, asking for 100000 credits ($0.10):<a href="#appendix-B-5" class="pilcrow">¶</a></p>
+<div class="lang-http-message sourcecode" id="appendix-B-6">
+<pre>
+POST /mission HTTP/1.1
+Host: ps.example
+Content-Type: application/json
+Signature-Input: sig=("@method" "@authority" "@path"
+    "signature-key");created=1784384400
+Signature: sig=:...:
+Signature-Key: sig=jwt;jwt="eyJ..agent-token.."
+
+{
+  "description":
+    "Chat in Pony Chat using your Token Pony balance.",
+  "tools": [
+    { "name": "chat.completions",
+      "description":
+        "OpenAI-compatible chat completions at api.tokenpony.dev" }
+  ],
+  "budgets": [
+    { "resource": "https://api.tokenpony.dev",
+      "amount": "0.10",
+      "currency": "USD",
+      "models": ["pony-8b", "pony-70b"] }
+  ]
+}
+</pre><a href="#appendix-B-6" class="pilcrow">¶</a>
+</div>
+<p id="appendix-B-7">The PS defers while the person reviews (202, <code>status: pending</code>),
+then the person grants half the ask. Polling returns the approved
+mission of <a href="#example" class="auto internal xref">Section 10</a>, byte for byte, with its reference:<a href="#appendix-B-7" class="pilcrow">¶</a></p>
+<div class="lang-http-message sourcecode" id="appendix-B-8">
+<pre>
+HTTP/1.1 200 OK
+AAuth-Mission: approver="https://ps.example";
+    s256="EMIlPYHAY6dNVw_YguH7Vqde9hCAAtLHWRtZfCndpUc"
+Content-Type: application/json
+
+{
+  "approver": "https://ps.example",
+  "agent": "aauth:pony-chat@ponychat.tokenpony.dev",
+  "approved_at": "2026-07-18T14:32:11Z",
+  ...
+  "budgets": [
+    { "resource": "https://api.tokenpony.dev",
+      "amount": "0.05",
+      "currency": "USD",
+      "models": ["pony-8b", "pony-70b"] }
+  ]
+}
+</pre><a href="#appendix-B-8" class="pilcrow">¶</a>
+</div>
+<p id="appendix-B-9">The agent reads the granted values from the blob: 50000 credits.
+Its first inference attempt, signed with its agent token, draws the
+challenge and a resource token:<a href="#appendix-B-9" class="pilcrow">¶</a></p>
+<div class="lang-http-message sourcecode" id="appendix-B-10">
+<pre>
+POST /v1/chat/completions HTTP/1.1
+Host: api.tokenpony.dev
+Content-Type: application/json
+AAuth-Mission: approver="https://ps.example";
+    s256="EMIlPYHAY6dNVw_YguH7Vqde9hCAAtLHWRtZfCndpUc"
+Signature-Input: sig=("@method" "@authority" "@path"
+    "signature-key" "aauth-mission");created=1784386740
+Signature: sig=:...:
+Signature-Key: sig=jwt;jwt="eyJ..agent-token.."
+</pre><a href="#appendix-B-10" class="pilcrow">¶</a>
+</div>
+<div class="lang-http-message sourcecode" id="appendix-B-11">
+<pre>
+HTTP/1.1 401 Unauthorized
+AAuth-Requirement: requirement=auth-token;
+    resource-token="eyJ..resource-token.."
+</pre><a href="#appendix-B-11" class="pilcrow">¶</a>
+</div>
+<p id="appendix-B-12">The resource token copies the mission reference from the header.
+Its payload:<a href="#appendix-B-12" class="pilcrow">¶</a></p>
+<div class="lang-json sourcecode" id="appendix-B-13">
+<pre>
+{
+  "iss": "https://api.tokenpony.dev",
+  "dwk": "aauth-resource.json",
+  "aud": "https://ps.example",
+  "agent": "aauth:pony-chat@ponychat.tokenpony.dev",
+  "agent_jkt": "kV9CqXP3...",
+  "scope": "inference",
+  "mission": {
+    "approver": "https://ps.example",
+    "s256": "EMIlPYHAY6dNVw_YguH7Vqde9hCAAtLHWRtZfCndpUc"
+  },
+  "jti": "rt_8Zw2mKq4",
+  "iat": 1784386740,
+  "exp": 1784387040
+}
+</pre><a href="#appendix-B-13" class="pilcrow">¶</a>
+</div>
+<p id="appendix-B-14">The agent exchanges it at the PS, which verifies the mission is
+active and the issuer matches the granted entry, and issues the
+auth token of <a href="#example" class="auto internal xref">Section 10</a>, <code>budget</code> claim and all:<a href="#appendix-B-14" class="pilcrow">¶</a></p>
+<div class="lang-http-message sourcecode" id="appendix-B-15">
+<pre>
+POST /token HTTP/1.1
+Host: ps.example
+Content-Type: application/json
+AAuth-Mission: approver="https://ps.example";
+    s256="EMIlPYHAY6dNVw_YguH7Vqde9hCAAtLHWRtZfCndpUc"
+Signature-Input: sig=("@method" "@authority" "@path"
+    "signature-key" "aauth-mission");created=1784386790
+Signature: sig=:...:
+Signature-Key: sig=jwt;jwt="eyJ..agent-token.."
+
+{
+  "resource_token": "eyJ..resource-token..",
+  "justification": "Answer the user's next message in Pony Chat."
+}
+</pre><a href="#appendix-B-15" class="pilcrow">¶</a>
+</div>
+<div class="lang-http-message sourcecode" id="appendix-B-16">
+<pre>
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{ "auth_token": "eyJ..auth-token..", "expires_in": 3600 }
+</pre><a href="#appendix-B-16" class="pilcrow">¶</a>
+</div>
+<p id="appendix-B-17">Inference proper, signed with the key the auth token's <code>cnf.jwk</code>
+names:<a href="#appendix-B-17" class="pilcrow">¶</a></p>
+<div class="lang-http-message sourcecode" id="appendix-B-18">
+<pre>
+POST /v1/chat/completions HTTP/1.1
+Host: api.tokenpony.dev
+Content-Type: application/json
+AAuth-Mission: approver="https://ps.example";
+    s256="EMIlPYHAY6dNVw_YguH7Vqde9hCAAtLHWRtZfCndpUc"
+Signature-Key: sig=jwt;jwt="eyJ..auth-token.."
+
+{
+  "model": "pony-8b",
+  "messages": [ { "role": "user", "content": "..." } ],
+  "stream": false
+}
+</pre><a href="#appendix-B-18" class="pilcrow">¶</a>
+</div>
+<div class="lang-http-message sourcecode" id="appendix-B-19">
+<pre>
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "id": "chatcmpl-7QkX",
+  "model": "pony-8b",
+  "choices": [
+    { "message": { "role": "assistant", "content": "..." },
+      "finish_reason": "stop" }
+  ],
+  "usage": {
+    "prompt_tokens": 812,
+    "cached_tokens": 192,
+    "completion_tokens": 214,
+    "credits_charged": 1930
+  }
+}
+</pre><a href="#appendix-B-19" class="pilcrow">¶</a>
+</div>
+<p id="appendix-B-20">At pony-8b rates that is 812 fresh input, 48 cached input, and 1070
+output credits: 1930, debited against the grant. Sessions later,
+each hour's auth token re-obtained through the same exchange, the
+agent checks the meter:<a href="#appendix-B-20" class="pilcrow">¶</a></p>
+<div class="lang-http-message sourcecode" id="appendix-B-21">
+<pre>
+GET /grant HTTP/1.1
+Host: api.tokenpony.dev
+AAuth-Mission: approver="https://ps.example";
+    s256="EMIlPYHAY6dNVw_YguH7Vqde9hCAAtLHWRtZfCndpUc"
+Signature-Key: sig=jwt;jwt="eyJ..auth-token.."
+</pre><a href="#appendix-B-21" class="pilcrow">¶</a>
+</div>
+<div class="lang-http-message sourcecode" id="appendix-B-22">
+<pre>
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "active": true,
+  "budget": { "amount": "0.05", "currency": "USD" },
+  "spent": { "amount": "0.04125", "currency": "USD" },
+  "credits": 50000,
+  "credits_used": 41250
+}
+</pre><a href="#appendix-B-22" class="pilcrow">¶</a>
+</div>
+<p id="appendix-B-23">8750 credits remain. When they are gone, the next completion fails
+closed in the API's own error shape:<a href="#appendix-B-23" class="pilcrow">¶</a></p>
+<div class="lang-http-message sourcecode" id="appendix-B-24">
+<pre>
+HTTP/1.1 402 Payment Required
+Content-Type: application/json
+
+{
+  "error": {
+    "code": "budget_exhausted",
+    "message": "This grant's budget is spent.",
+    "type": "invalid_request_error"
+  }
+}
+</pre><a href="#appendix-B-24" class="pilcrow">¶</a>
+</div>
+<p id="appendix-B-25">The agent surfaces the exhaustion to the person and proposes
+completion, spend in the summary:<a href="#appendix-B-25" class="pilcrow">¶</a></p>
+<div class="lang-http-message sourcecode" id="appendix-B-26">
+<pre>
+POST /interaction HTTP/1.1
+Host: ps.example
+Content-Type: application/json
+AAuth-Mission: approver="https://ps.example";
+    s256="EMIlPYHAY6dNVw_YguH7Vqde9hCAAtLHWRtZfCndpUc"
+Signature-Key: sig=jwt;jwt="eyJ..agent-token.."
+
+{
+  "type": "completion",
+  "summary":
+    "Chat ended. Spent 50000 of 50000 credits ($0.05)."
+}
+</pre><a href="#appendix-B-26" class="pilcrow">¶</a>
+</div>
+<p id="appendix-B-27">If the person wants more Pony Chat, that is a new mission with a
+fresh budget; the person decides, exactly as in TPX v0.2's top-off.
+Any later token request under the terminated reference fails
+closed:<a href="#appendix-B-27" class="pilcrow">¶</a></p>
+<div class="lang-json sourcecode" id="appendix-B-28">
+<pre>
+{
+  "error": "mission_terminated",
+  "error_description": "This mission has ended."
+}
+</pre><a href="#appendix-B-28" class="pilcrow">¶</a>
+</div>
+</section>
+</div>
+<div id="acknowledgments">
+<section id="appendix-C">
       <h2 id="name-acknowledgments">
 <a href="#name-acknowledgments" class="section-name selfRef">Acknowledgments</a>
       </h2>
-<p id="appendix-B-1">TPX v0.2 <span>[<a href="#TPX" class="cite xref">TPX</a>]</span> defined the metered LLM inference grant as an OAuth
+<p id="appendix-C-1">TPX v0.2 <span>[<a href="#TPX" class="cite xref">TPX</a>]</span> defined the metered LLM inference grant as an OAuth
 2.0 profile. This document restates it natively on AAuth via
-Budgeted Missions for AAuth, which generalizes its budget mechanism.<a href="#appendix-B-1" class="pilcrow">¶</a></p>
+Budgeted Missions for AAuth, which generalizes its budget mechanism.<a href="#appendix-C-1" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="authors-addresses">
-<section id="appendix-C">
+<section id="appendix-D">
       <h2 id="name-authors-address">
 <a href="#name-authors-address" class="section-name selfRef">Author's Address</a>
       </h2>
