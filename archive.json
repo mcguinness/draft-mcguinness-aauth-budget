@@ -1,0 +1,119 @@
+{
+  "magic": "E!vIA5L86J2I",
+  "timestamp": "2026-07-21T03:27:07.489585+00:00",
+  "repo": "mcguinness/draft-mcguinness-aauth-budget",
+  "labels": [
+    {
+      "name": "bug",
+      "description": "Something isn't working",
+      "color": "d73a4a"
+    },
+    {
+      "name": "documentation",
+      "description": "Improvements or additions to documentation",
+      "color": "0075ca"
+    },
+    {
+      "name": "duplicate",
+      "description": "This issue or pull request already exists",
+      "color": "cfd3d7"
+    },
+    {
+      "name": "enhancement",
+      "description": "New feature or request",
+      "color": "a2eeef"
+    },
+    {
+      "name": "good first issue",
+      "description": "Good for newcomers",
+      "color": "7057ff"
+    },
+    {
+      "name": "help wanted",
+      "description": "Extra attention is needed",
+      "color": "008672"
+    },
+    {
+      "name": "invalid",
+      "description": "This doesn't seem right",
+      "color": "e4e669"
+    },
+    {
+      "name": "question",
+      "description": "Further information is requested",
+      "color": "d876e3"
+    },
+    {
+      "name": "wontfix",
+      "description": "This will not be worked on",
+      "color": "ffffff"
+    }
+  ],
+  "issues": [],
+  "pulls": [
+    {
+      "number": 1,
+      "id": "PR_kwDOTcycEc7zcrK6",
+      "title": "AAuth-Budget: initial specification, with the TPX-A profile",
+      "url": "https://github.com/mcguinness/draft-mcguinness-aauth-budget/pull/1",
+      "state": "MERGED",
+      "author": "mcguinness",
+      "authorAssociation": "OWNER",
+      "assignees": [],
+      "labels": [],
+      "body": "## What\n\nTwo Internet-Drafts, replacing the template starter:\n\n**draft-mcguinness-aauth-budget (Budgeted Missions for AAuth)**: the generic layer. AAuth missions express intent and tools, never quantity; this extension defines the budget, a hard cap on cumulative monetary spend at one resource, proposed by the agent, approved (possibly lowered) at the Person Server, committed under the mission's s256, carried verbatim in every auth token, and enforced by the payee that meters its own service. Four names, no new protocol: `budgets` (mission member), `budget` (auth-token claim), `budget_endpoint` (resource metadata member and endpoint), `budget_exhausted` (error code).\n\n**draft-mcguinness-aauth-budget-tpx (TPX-A)**: the first profile, the AAuth-native sibling of [TPX v0.2](https://tokenpony.dev/spec/). Pins the five things the generic layer leaves open: the credit unit (1 credit = US$0.000001, budgets committed in currency, exactly convertible), the `models` restriction, the OpenAI-compatible API surface (`GET /models`, `GET /grant`, `POST /chat/completions`, `credits_charged`), the balance model (`balance_exhausted`, account binding per mode), and identity minimization (directed `sub`, no identity claims).\n\n## Design notes\n\n- Scope boundary stated in the generic draft: a payee-enforced damage cap, not a governance meter. Cross-resource aggregates are the mission-governance metering layer's problem (informative pointers only).\n- Consent can only narrow: granted amount never exceeds proposed; agents read granted values from the blob.\n- The `budget` claim carries only the entry matching the token audience, so a resource never learns caps at other resources.\n- Blob immutability under s256 means top-off is a new mission; the permission endpoint is deliberately not a budget path.\n- TPX-A's mapping appendix records the retirement of each TPX v0.2 OAuth mechanism (PKCE, PAR, redirect/code/iss, refresh rotation, DPoP-as-option, RFC 7591 registration, introspection).\n\n## Verification\n\n- Both drafts build with `make` (kramdown-rfc OK, xml2rfc OK, no line-length warnings).\n- Example `s256` values are real: computed over the compact serialization of the example blobs as shown.\n- Both track draft-hardt-oauth-aauth-protocol-08.\n\nRepo scaffolding included: Makefile (from the mission repo's proven setup, GNU sed guard included), .gitignore, README with links for both drafts.",
+      "createdAt": "2026-07-19T01:57:10Z",
+      "updatedAt": "2026-07-19T03:09:49Z",
+      "baseRepository": "mcguinness/draft-mcguinness-aauth-budget",
+      "baseRefName": "main",
+      "baseRefOid": "8c7805df1259b7f2290ffc444af31d4d63191b0c",
+      "headRepository": "mcguinness/draft-mcguinness-aauth-budget",
+      "headRefName": "initial-spec",
+      "headRefOid": "60f0c896543a57eb2251841881e3cc45c9fdc2f2",
+      "closedAt": "2026-07-19T03:09:40Z",
+      "mergedAt": "2026-07-19T03:09:40Z",
+      "mergedBy": "mcguinness",
+      "mergeCommit": {
+        "oid": "be44d7ecdf7f9fd15ff53ea9815ba18cafcd7e5f"
+      },
+      "comments": [],
+      "reviews": []
+    },
+    {
+      "number": 2,
+      "id": "PR_kwDOTcycEc7zdX8D",
+      "title": "Review pass: sharpen the budget-claim gate, drop mission-family refs",
+      "url": "https://github.com/mcguinness/draft-mcguinness-aauth-budget/pull/2",
+      "state": "MERGED",
+      "author": "mcguinness",
+      "authorAssociation": "OWNER",
+      "assignees": [],
+      "labels": [],
+      "body": "Review-and-improve pass over both drafts, plus dropping the informative references to draft-mcguinness-mission-aauth and draft-mcguinness-mission-metering as requested.\n\n## Generic draft (aauth-budget)\n\n- **References dropped.** The scope boundary keeps its content (cross-resource aggregates are a distributed-counting problem, out of scope; PDP-metering governance profiles compose since `budgets` is an ordinary s256-committed blob member) but no longer cites the mission family.\n- **Issuance gate narrowed to what this document governs.** The old text read as a general gate on all issuance under a budgeted mission. Now: the PS gates tokens that *carry a budget claim* (active mission, audience equals the entry's resource); tokens for resources with no entry carry no claim, convey no budgeted access, and remain ordinary AAuth authorization. PS conformance restated to match.\n- **Cap provenance.** A resource takes the cap only from a verified auth token, never from request content or any other source.\n- **Metering tightened.** Debit once per served response; retry/idempotency and unit-conversion rounding are named profile concerns; the committed amount remains the bound under both.\n- **Budget state tightened.** `active` defined (false at cap or when serving stops); a budget with no debits reports zero `spent`; the response must reflect every committed debit.\n- **Downgrade defense.** Agents verify the approved blob carries `budgets` before treating the grant as budgeted, since a PS that does not implement the extension may approve the mission without one.\n- Smaller: entries are independent and per-resource; the proposal is a request, never authority; a budget has no lifetime of its own, it ends with the mission.\n\n## TPX-A\n\n- **All inference access is budgeted**: a token without a `budget` claim gets no inference, per the fail-closed rule.\n- `GET /models` may be served unauthenticated.\n- `credits_charged` is an integer; whole-credit debits make the currency view exact to six decimal places.\n- Abstract wording fix ('carrying a budget defined by...') and example wording aligned with the generic draft.\n\n## Verification\n\n- `grep` confirms zero remaining references to the two mission drafts.\n- Both drafts build with `make` (kramdown-rfc OK, xml2rfc OK); no em-dashes introduced.",
+      "createdAt": "2026-07-19T03:29:02Z",
+      "updatedAt": "2026-07-19T03:44:53Z",
+      "baseRepository": "mcguinness/draft-mcguinness-aauth-budget",
+      "baseRefName": "main",
+      "baseRefOid": "be44d7ecdf7f9fd15ff53ea9815ba18cafcd7e5f",
+      "headRepository": "mcguinness/draft-mcguinness-aauth-budget",
+      "headRefName": "review-pass",
+      "headRefOid": "9c682cb3ae91219c2024c940835e3835be16bd98",
+      "closedAt": "2026-07-19T03:44:48Z",
+      "mergedAt": "2026-07-19T03:44:48Z",
+      "mergedBy": "mcguinness",
+      "mergeCommit": {
+        "oid": "e288c0ea813a7d604c7b27c905cecf5fd9d632d9"
+      },
+      "comments": [
+        {
+          "author": "mcguinness",
+          "authorAssociation": "OWNER",
+          "body": "Added to this PR: a non-normative **Complete Protocol Exchange** appendix in each draft, walking one full grant end to end (proposal asking high, approval granted lower, 401 challenge with the mission reference copied into the resource token, PS token exchange, spend with debit reporting, budget-state read, 402 exhaustion, completion with spend in the summary, and the terminal mission_terminated refusal).\n\nBoth appendices reuse the committed worked-example blobs and s256 values so every number is reproducible; TPX-A's adds the `GET /models` rates step, and its usage example's `cached_tokens` moved 256 \u2192 192 so the pony-8b rate math (812 + 48 + 1070) lands exactly on the 1930 `credits_charged` shown. Both drafts still build clean.",
+          "createdAt": "2026-07-19T03:42:38Z",
+          "updatedAt": "2026-07-19T03:42:38Z"
+        }
+      ],
+      "reviews": []
+    }
+  ]
+}
